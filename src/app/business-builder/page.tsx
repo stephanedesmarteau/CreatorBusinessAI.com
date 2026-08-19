@@ -12,6 +12,14 @@ export default function BusinessBuilderPage() {
   const [plan, setPlan] = useState("");
   const [error, setError] = useState("");
 
+  const scoreMatch = plan.match(/(\d{1,3})\/100/);
+  const score = scoreMatch ? Number(scoreMatch[1]) : null;
+
+  const verdictMatch = plan.match(
+    /Verdict stratégique[\s\S]*?(GO|À VALIDER|NO-GO)/i
+  );
+  const verdict = verdictMatch ? verdictMatch[1].toUpperCase() : null;
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -178,13 +186,37 @@ export default function BusinessBuilderPage() {
               )}
 
               {plan && (
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                  <p className="mb-3 text-sm font-bold text-emerald-300">
-                    Plan généré par CreatorBusinessAI
-                  </p>
-                  <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate-200">
-                    {plan}
-                  </pre>
+                <div className="space-y-5">
+                  {(score !== null || verdict) && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-5">
+                        <p className="text-xs font-bold uppercase tracking-wider text-blue-300">
+                          Score de viabilité
+                        </p>
+                        <p className="mt-2 text-4xl font-bold text-white">
+                          {score !== null ? `${score}/100` : "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5">
+                        <p className="text-xs font-bold uppercase tracking-wider text-violet-300">
+                          Verdict stratégique
+                        </p>
+                        <p className="mt-2 text-2xl font-bold text-white">
+                          {verdict || "Analyse en cours"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                    <p className="mb-3 text-sm font-bold text-emerald-300">
+                      Plan généré par CreatorBusinessAI
+                    </p>
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate-200">
+                      {plan}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>
