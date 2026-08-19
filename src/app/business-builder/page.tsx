@@ -47,6 +47,10 @@ export default function BusinessBuilderPage() {
         .filter((section) => section.title && section.content)
     : [];
 
+  const prioritySection = sections.find(
+    (section) => section.title.toLowerCase() === "5 actions prioritaires"
+  );
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -241,20 +245,41 @@ export default function BusinessBuilderPage() {
                       Plan généré par CreatorBusinessAI
                     </p>
 
-                    {sections.map((section) => (
-                      <section
-                        key={section.title}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
-                      >
-                        <h3 className="text-lg font-bold text-white">
-                          {section.title}
+                    {prioritySection && (
+                      <section className="rounded-3xl border border-amber-400/30 bg-amber-500/10 p-6">
+                        <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
+                          Priorité d'exécution
+                        </p>
+
+                        <h3 className="mt-2 text-2xl font-bold text-white">
+                          5 actions prioritaires
                         </h3>
 
-                        <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                          {section.content}
+                        <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                          {prioritySection.content}
                         </div>
                       </section>
-                    ))}
+                    )}
+
+                    {sections
+                      .filter(
+                        (section) =>
+                          section.title.toLowerCase() !== "5 actions prioritaires"
+                      )
+                      .map((section) => (
+                        <section
+                          key={section.title}
+                          className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                        >
+                          <h3 className="text-lg font-bold text-white">
+                            {section.title}
+                          </h3>
+
+                          <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                            {section.content}
+                          </div>
+                        </section>
+                      ))}
                   </div>
                 </div>
               )}
