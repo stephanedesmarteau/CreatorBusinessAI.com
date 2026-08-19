@@ -51,6 +51,18 @@ export default function BusinessBuilderPage() {
     (section) => section.title.toLowerCase() === "5 actions prioritaires"
   );
 
+  const plan30 = sections.find(
+    (section) => section.title.toLowerCase() === "plan 30 jours"
+  );
+
+  const plan60 = sections.find(
+    (section) => section.title.toLowerCase() === "plan 60 jours"
+  );
+
+  const plan90 = sections.find(
+    (section) => section.title.toLowerCase() === "plan 90 jours"
+  );
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -259,6 +271,52 @@ export default function BusinessBuilderPage() {
                           {prioritySection.content}
                         </div>
                       </section>
+                    )}
+
+                    {(plan30 || plan60 || plan90) && (
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        {plan30 && (
+                          <section className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-5">
+                            <p className="text-xs font-bold uppercase tracking-wider text-blue-300">
+                              30 jours
+                            </p>
+                            <h3 className="mt-2 text-lg font-bold text-white">
+                              Lancement
+                            </h3>
+                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                              {plan30.content}
+                            </div>
+                          </section>
+                        )}
+
+                        {plan60 && (
+                          <section className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5">
+                            <p className="text-xs font-bold uppercase tracking-wider text-violet-300">
+                              60 jours
+                            </p>
+                            <h3 className="mt-2 text-lg font-bold text-white">
+                              Validation
+                            </h3>
+                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                              {plan60.content}
+                            </div>
+                          </section>
+                        )}
+
+                        {plan90 && (
+                          <section className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                            <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                              90 jours
+                            </p>
+                            <h3 className="mt-2 text-lg font-bold text-white">
+                              Accélération
+                            </h3>
+                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                              {plan90.content}
+                            </div>
+                          </section>
+                        )}
+                      </div>
                     )}
 
                     {sections
