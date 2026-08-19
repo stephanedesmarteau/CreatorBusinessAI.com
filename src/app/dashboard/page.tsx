@@ -133,9 +133,18 @@ export default function DashboardPage() {
                   <p className="mt-3 min-h-24 leading-7 text-slate-400">
                     {module.description}
                   </p>
-                  <button className="mt-6 rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10">
-                    {module.action} →
-                  </button>
+                  {module.title === "AI Business Builder" ? (
+                    <a
+                      href="/business-builder"
+                      className="mt-6 inline-block rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10"
+                    >
+                      {module.action} →
+                    </a>
+                  ) : (
+                    <button className="mt-6 rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/10">
+                      {module.action} →
+                    </button>
+                  )}
                 </article>
               ))}
             </div>
