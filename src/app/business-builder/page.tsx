@@ -8,6 +8,47 @@ export default function BusinessBuilderPage() {
   const [market, setMarket] = useState("");
   const [budget, setBudget] = useState("");
   const [goal, setGoal] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState("");
+  const [error, setError] = useState("");
+
+  async function generatePlan() {
+    setLoading(true);
+    setError("");
+    setPlan("");
+
+    try {
+      const response = await fetch("/api/business-builder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idea,
+          industry,
+          market,
+          budget,
+          goal,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur pendant la génération.");
+      }
+
+      setPlan(data.plan || "");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Une erreur est survenue."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -122,13 +163,30 @@ export default function BusinessBuilderPage() {
                 </div>
               </div>
 
-              <button className="w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400">
-                Générer mon plan avec l'IA →
+              <button
+                onClick={generatePlan}
+                disabled={loading}
+                className="w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Génération en cours..." : "Générer mon plan avec l'IA →"}
               </button>
 
-              <p className="text-center text-xs text-slate-500">
-                Le bouton sera connecté au moteur IA à la prochaine étape.
-              </p>
+              {error && (
+                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
+
+              {plan && (
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                  <p className="mb-3 text-sm font-bold text-emerald-300">
+                    Plan généré par CreatorBusinessAI
+                  </p>
+                  <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate-200">
+                    {plan}
+                  </pre>
+                </div>
+              )}
             </div>
           </section>
 
