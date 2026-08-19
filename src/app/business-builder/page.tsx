@@ -20,6 +20,33 @@ export default function BusinessBuilderPage() {
   );
   const verdict = verdictMatch ? verdictMatch[1].toUpperCase() : null;
 
+  const cleanedPlan = plan
+    .replace(/```(?:markdown)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const sections = cleanedPlan
+    ? cleanedPlan
+        .split(/(?=^#{1,6}\s)/gm)
+        .map((section) => {
+          const lines = section.trim().split("\n");
+
+          const title = (lines.shift() || "")
+            .replace(/^[\s\u200B-\u200D\uFEFF]*#{1,6}[\s\u00A0]*/, "")
+            .replace(/\*\*/g, "")
+            .trim();
+
+          const content = lines
+            .join("\n")
+            .replace(/^#{1,6}\s*/gm, "")
+            .replace(/\*\*/g, "")
+            .trim();
+
+          return { title, content };
+        })
+        .filter((section) => section.title && section.content)
+    : [];
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -209,13 +236,25 @@ export default function BusinessBuilderPage() {
                     </div>
                   )}
 
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                    <p className="mb-3 text-sm font-bold text-emerald-300">
+                  <div className="space-y-4">
+                    <p className="text-sm font-bold text-emerald-300">
                       Plan généré par CreatorBusinessAI
                     </p>
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate-200">
-                      {plan}
-                    </pre>
+
+                    {sections.map((section) => (
+                      <section
+                        key={section.title}
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                      >
+                        <h3 className="text-lg font-bold text-white">
+                          {section.title}
+                        </h3>
+
+                        <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                          {section.content}
+                        </div>
+                      </section>
+                    ))}
                   </div>
                 </div>
               )}
