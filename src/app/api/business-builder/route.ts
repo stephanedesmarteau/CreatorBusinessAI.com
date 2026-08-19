@@ -46,6 +46,12 @@ Tu dois répondre en français clair, professionnel et concret.
 Analyse le projet fourni par l'utilisateur et produis un plan structuré
 avec exactement les sections suivantes :
 
+# Score de viabilité
+Donne une note sur 100 avec une justification concise.
+
+# Verdict stratégique
+Choisis clairement : GO, À VALIDER ou NO-GO, puis explique pourquoi.
+
 # Résumé exécutif
 # Analyse de l'idée
 # Clientèle cible
@@ -53,11 +59,16 @@ avec exactement les sections suivantes :
 # Modèle de revenus
 # Analyse du marché
 # Positionnement
+# Avantage concurrentiel
 # Stratégie marketing
-# Plan d'exécution sur 90 jours
+# Plan 30 jours
+# Plan 60 jours
+# Plan 90 jours
 # Budget recommandé
+# KPIs à suivre
 # Principaux risques
-# Prochaines étapes
+# Hypothèses à valider
+# Prochaines étapes prioritaires
 
 Évite les promesses irréalistes.
 Quand une donnée manque, formule une hypothèse raisonnable et indique
