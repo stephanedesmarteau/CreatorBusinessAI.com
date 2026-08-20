@@ -83,6 +83,35 @@ export default function BusinessBuilderPage() {
   const executiveRecommendation =
     finalRecommendation?.content || "";
 
+  function downloadPlan() {
+    if (!plan) return;
+
+    const content = [
+      "CreatorBusinessAI",
+      "AI Business Builder",
+      "",
+      `Score de viabilité: ${score !== null ? `${score}/100` : "Non disponible"}`,
+      `Verdict stratégique: ${verdict || "Non disponible"}`,
+      "",
+      cleanedPlan,
+    ].join("\n");
+
+    const blob = new Blob([content], {
+      type: "text/plain;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "CreatorBusinessAI-plan-affaires.txt";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -292,6 +321,15 @@ export default function BusinessBuilderPage() {
                       </div>
                     </section>
                   )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={downloadPlan}
+                      className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-bold text-white transition hover:bg-white/[0.10]"
+                    >
+                      Télécharger le plan
+                    </button>
+                  </div>
 
                   {(score !== null || verdict) && (
                     <div className="grid gap-4 sm:grid-cols-2">
