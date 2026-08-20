@@ -74,6 +74,12 @@ export default function BusinessBuilderPage() {
     (section) => section.title.toLowerCase() === "plan 90 jours"
   );
 
+  const finalRecommendation = sections.find(
+    (section) =>
+      section.title.toLowerCase() ===
+      "recommandation finale creatorbusinessai"
+  );
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -351,10 +357,17 @@ export default function BusinessBuilderPage() {
                     )}
 
                     {sections
-                      .filter(
-                        (section) =>
-                          section.title.toLowerCase() !== "5 actions prioritaires"
-                      )
+                      .filter((section) => {
+                        const title = section.title.toLowerCase();
+
+                        return (
+                          title !== "5 actions prioritaires" &&
+                          title !== "plan 30 jours" &&
+                          title !== "plan 60 jours" &&
+                          title !== "plan 90 jours" &&
+                          title !== "recommandation finale creatorbusinessai"
+                        );
+                      })
                       .map((section) => (
                         <section
                           key={section.title}
@@ -369,6 +382,22 @@ export default function BusinessBuilderPage() {
                           </div>
                         </section>
                       ))}
+
+                    {finalRecommendation && (
+                      <section className="rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-6">
+                        <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                          Conclusion stratégique
+                        </p>
+
+                        <h3 className="mt-2 text-2xl font-bold text-white">
+                          Recommandation finale CreatorBusinessAI
+                        </h3>
+
+                        <div className="mt-4 whitespace-pre-wrap text-base leading-8 text-slate-100">
+                          {finalRecommendation.content}
+                        </div>
+                      </section>
+                    )}
                   </div>
                 </div>
               )}
