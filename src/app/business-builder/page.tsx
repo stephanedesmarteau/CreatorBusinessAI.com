@@ -80,6 +80,9 @@ export default function BusinessBuilderPage() {
       "recommandation finale creatorbusinessai"
   );
 
+  const executiveRecommendation =
+    finalRecommendation?.content || "";
+
   async function generatePlan() {
     setLoading(true);
     setError("");
@@ -247,6 +250,49 @@ export default function BusinessBuilderPage() {
 
               {plan && (
                 <div className="space-y-5">
+                  {(score !== null || verdict || executiveRecommendation) && (
+                    <section className="rounded-3xl border border-cyan-400/20 bg-cyan-500/10 p-6">
+                      <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+                        Résumé décisionnel
+                      </p>
+
+                      <div className="mt-4 grid gap-4 lg:grid-cols-[0.7fr_0.7fr_1.6fr]">
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-slate-400">
+                            Score
+                          </p>
+                          <p className="mt-2 text-3xl font-bold text-white">
+                            {score !== null ? `${score}/100` : "—"}
+                          </p>
+                          {viabilityLabel && (
+                            <p className="mt-1 text-sm font-semibold text-cyan-200">
+                              {viabilityLabel}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-slate-400">
+                            Verdict
+                          </p>
+                          <p className="mt-2 text-xl font-bold text-white">
+                            {verdict || "Analyse en cours"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-slate-400">
+                            Recommandation
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-slate-200">
+                            {executiveRecommendation ||
+                              "La recommandation finale apparaîtra ici."}
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
                   {(score !== null || verdict) && (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-5">
