@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function AICentralPage() {
   const [message, setMessage] = useState("");
   const [route, setRoute] = useState("");
+  const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -14,6 +15,7 @@ export default function AICentralPage() {
     setLoading(true);
     setError("");
     setRoute("");
+    setResult("");
 
     try {
       const response = await fetch("/api/ai-router", {
@@ -33,6 +35,7 @@ export default function AICentralPage() {
       }
 
       setRoute(data.route || "general");
+      setResult(data.result || "");
     } catch (err) {
       setError(
         err instanceof Error
@@ -103,6 +106,18 @@ export default function AICentralPage() {
               <p className="mt-2 text-2xl font-bold capitalize text-white">
                 {route}
               </p>
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
+                Réponse de l'agent
+              </p>
+
+              <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                {result}
+              </div>
             </div>
           )}
         </div>
