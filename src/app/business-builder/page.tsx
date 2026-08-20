@@ -15,6 +15,17 @@ export default function BusinessBuilderPage() {
   const scoreMatch = plan.match(/(\d{1,3})\/100/);
   const score = scoreMatch ? Number(scoreMatch[1]) : null;
 
+  const viabilityLabel =
+    score === null
+      ? null
+      : score < 40
+        ? "Faible"
+        : score < 60
+          ? "À valider"
+          : score < 80
+            ? "Solide"
+            : "Excellent";
+
   const verdictMatch = plan.match(
     /Verdict stratégique[\s\S]*?(GO|À VALIDER|NO-GO)/i
   );
@@ -239,6 +250,26 @@ export default function BusinessBuilderPage() {
                         <p className="mt-2 text-4xl font-bold text-white">
                           {score !== null ? `${score}/100` : "—"}
                         </p>
+
+                        {score !== null && (
+                          <div className="mt-4">
+                            <div className="mb-2 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-blue-200">
+                                {viabilityLabel}
+                              </span>
+                              <span className="text-slate-400">
+                                Viabilité
+                              </span>
+                            </div>
+
+                            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                              <div
+                                className="h-full rounded-full bg-blue-400 transition-all duration-700"
+                                style={{ width: `${Math.min(score, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5">
