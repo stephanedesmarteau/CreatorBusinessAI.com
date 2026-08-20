@@ -4,6 +4,7 @@ import {
   agentInstructions,
   type AIRoute,
 } from "@/lib/ai/agents";
+import { getCapability } from "@/lib/ai/capabilities";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -87,15 +88,17 @@ Réponds uniquement avec le nom exact de la catégorie.
       ? (rawRoute as AIRoute)
       : "general";
 
-    if (route === "image" || route === "video" || route === "voice") {
+    const capability = getCapability(route);
+
+    if (!capability || !capability.enabled) {
       return NextResponse.json({
         success: true,
         route,
         message,
+        capability: capability || null,
         result:
-          "La demande a été correctement identifiée. Le moteur spécialisé " +
-          route +
-          " sera connecté dans une prochaine étape de CreatorBusinessAI.",
+          "La demande a été correctement identifiée, mais cette capacité " +
+          "n'est pas encore activée dans CreatorBusinessAI.",
       });
     }
 
@@ -123,6 +126,7 @@ Réponds uniquement avec le nom exact de la catégorie.
       success: true,
       route,
       message,
+      capability,
       result: agentResponse.output_text,
     });
   } catch (error) {
