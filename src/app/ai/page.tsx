@@ -10,6 +10,7 @@ export default function AICentralPage() {
   const [imageType, setImageType] = useState("");
   const [imageMimeType, setImageMimeType] = useState("image/png");
   const [imageSize, setImageSize] = useState("1024x1024");
+  const [imageQuality, setImageQuality] = useState("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,6 +51,7 @@ export default function AICentralPage() {
         body: JSON.stringify({
           message,
           imageSize,
+          imageQuality,
         }),
       });
 
@@ -123,6 +125,33 @@ export default function AICentralPage() {
                   {option.label}
                 </button>
               ))}
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                Qualité
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: "Rapide", value: "low" },
+                  { label: "Standard", value: "medium" },
+                  { label: "Haute qualité", value: "high" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setImageQuality(option.value)}
+                    className={
+                      imageQuality === option.value
+                        ? "rounded-2xl border border-violet-400/40 bg-violet-500/20 px-4 py-3 text-sm font-bold text-violet-200"
+                        : "rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <textarea
