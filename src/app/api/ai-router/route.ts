@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     const response = await client.responses.create({
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
       reasoning: {
         effort: "low",
       },
