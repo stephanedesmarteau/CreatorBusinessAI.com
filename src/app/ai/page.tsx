@@ -13,6 +13,9 @@ export default function AICentralPage() {
   const [imageQuality, setImageQuality] = useState("medium");
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [sourcePreview, setSourcePreview] = useState("");
+  const [imageHistory, setImageHistory] = useState<
+    { id: string; src: string; label: string }[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -133,9 +136,27 @@ export default function AICentralPage() {
       setResult(data.result || "");
 
       if (data.image?.data) {
-        setImageData(data.image.data);
-        setImageType(data.image.type || "");
-        setImageMimeType(data.image.mimeType || "image/png");
+        const nextImageType = data.image.type || "";
+        const nextMimeType = data.image.mimeType || "image/png";
+        const nextImageData = data.image.data;
+
+        setImageData(nextImageData);
+        setImageType(nextImageType);
+        setImageMimeType(nextMimeType);
+
+        const src =
+          nextImageType === "base64"
+            ? `data:${nextMimeType};base64,${nextImageData}`
+            : nextImageData;
+
+        setImageHistory((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            src,
+            label: `Version ${current.length + 1}`,
+          },
+        ]);
       }
     } catch (err) {
       setError(
@@ -335,6 +356,67 @@ export default function AICentralPage() {
 
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
                 {result}
+              </div>
+            </div>
+          )}
+
+          {imageHistory.length > 0 && (
+            <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                Historique des versions
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {imageHistory.map((version) => (
+                  <button
+                    key={version.id}
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(version.src);
+                        const blob = await response.blob();
+
+                        const file = new File(
+                          [blob],
+                          `${version.label.replace(/\s+/g, "-").toLowerCase()}.png`,
+                          {
+                            type: blob.type || "image/png",
+                          }
+                        );
+
+                        setSourceImage(file);
+                        setImageData("");
+                        setResult("");
+                        setRoute("");
+                      } catch (error) {
+                        console.error(
+                          "Erreur reprise version:",
+                          error
+                        );
+                        setError(
+                          "Impossible de reprendre cette version."
+                        );
+                      }
+                    }}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-3 text-left transition hover:border-violet-400/30 hover:bg-white/[0.05]"
+                  >
+                    <div className="overflow-hidden rounded-xl border border-white/10">
+                      <img
+                        src={version.src}
+                        alt={version.label}
+                        className="h-auto w-full object-contain"
+                      />
+                    </div>
+
+                    <p className="mt-2 text-center text-xs font-bold text-slate-300">
+                      {version.label}
+                    </p>
+
+                    <p className="mt-1 text-center text-[11px] text-violet-300">
+                      Reprendre cette version
+                    </p>
+                  </button>
+                ))}
               </div>
             </div>
           )}
