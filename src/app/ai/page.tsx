@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function AICentralPage() {
   const [message, setMessage] = useState("");
@@ -12,8 +12,23 @@ export default function AICentralPage() {
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [sourceImage, setSourceImage] = useState<File | null>(null);
+  const [sourcePreview, setSourcePreview] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!sourceImage) {
+      setSourcePreview("");
+      return;
+    }
+
+    const url = URL.createObjectURL(sourceImage);
+    setSourcePreview(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [sourceImage]);
 
   function downloadImage() {
     if (!imageData) return;
@@ -195,11 +210,41 @@ export default function AICentralPage() {
                 />
               </label>
 
-              {sourceImage && (
-                <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
-                  <p className="text-xs font-semibold text-emerald-300">
+              {sourceImage && sourcePreview && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="overflow-hidden rounded-xl border border-white/10">
+                    <img
+                      src={sourcePreview}
+                      alt="Aperçu de l'image importée"
+                      className="h-auto w-full object-contain"
+                    />
+                  </div>
+
+                  <p className="mt-3 text-xs font-semibold text-emerald-300">
                     Image sélectionnée : {sourceImage.name}
                   </p>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-white/[0.10]">
+                      Remplacer
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) =>
+                          setSourceImage(e.target.files?.[0] || null)
+                        }
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setSourceImage(null)}
+                      className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300 transition hover:bg-red-500/15"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -255,20 +300,54 @@ export default function AICentralPage() {
           {imageData && (
             <div className="mt-6 rounded-3xl border border-violet-400/20 bg-violet-500/10 p-6">
               <p className="text-xs font-bold uppercase tracking-widest text-violet-300">
-                Image générée
+                {sourcePreview ? "Avant / Après" : "Image générée"}
               </p>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                <img
-                  src={
-                    imageType === "base64"
-                      ? `data:${imageMimeType};base64,${imageData}`
-                      : imageData
-                  }
-                  alt="Image générée par CreatorBusinessAI"
-                  className="h-auto w-full object-contain"
-                />
-              </div>
+              {sourcePreview ? (
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Avant
+                    </p>
+                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                      <img
+                        src={sourcePreview}
+                        alt="Image originale"
+                        className="h-auto w-full object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
+                      Après
+                    </p>
+                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                      <img
+                        src={
+                          imageType === "base64"
+                            ? `data:${imageMimeType};base64,${imageData}`
+                            : imageData
+                        }
+                        alt="Image modifiée par CreatorBusinessAI"
+                        className="h-auto w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                  <img
+                    src={
+                      imageType === "base64"
+                        ? `data:${imageMimeType};base64,${imageData}`
+                        : imageData
+                    }
+                    alt="Image générée par CreatorBusinessAI"
+                    className="h-auto w-full object-contain"
+                  />
+                </div>
+              )}
 
               <button
                 onClick={downloadImage}
