@@ -12,6 +12,23 @@ export default function AICentralPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  function downloadImage() {
+    if (!imageData) return;
+
+    const link = document.createElement("a");
+
+    link.href =
+      imageType === "base64"
+        ? `data:${imageMimeType};base64,${imageData}`
+        : imageData;
+
+    link.download = "CreatorBusinessAI-image.png";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   async function routeRequest() {
     if (!message.trim()) return;
 
@@ -150,6 +167,13 @@ export default function AICentralPage() {
                   className="h-auto w-full object-contain"
                 />
               </div>
+
+              <button
+                onClick={downloadImage}
+                className="mt-4 w-full rounded-2xl bg-violet-500 px-5 py-3 font-bold text-white transition hover:bg-violet-400"
+              >
+                Télécharger l'image
+              </button>
             </div>
           )}
         </div>
