@@ -55,7 +55,7 @@ export const aiCapabilities: AICapability[] = [
     route: "video",
     name: "Video Engine",
     description: "Création et production vidéo",
-    enabled: false,
+    enabled: true,
     mode: "media",
   },
   {

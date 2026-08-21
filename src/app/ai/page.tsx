@@ -9,6 +9,13 @@ export default function AICentralPage() {
   const [imageData, setImageData] = useState("");
   const [imageType, setImageType] = useState("");
   const [imageMimeType, setImageMimeType] = useState("image/png");
+  const [videoId, setVideoId] = useState("");
+  const [videoStatus, setVideoStatus] = useState("");
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoSize, setVideoSize] = useState("1280x720");
+  const [videoSeconds, setVideoSeconds] = useState("8");
+  const [videoModel, setVideoModel] = useState("sora-2");
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
@@ -19,6 +26,81 @@ export default function AICentralPage() {
   >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!videoId) return;
+
+    if (
+      videoStatus === "completed" ||
+      videoStatus === "failed"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const checkVideoStatus = async () => {
+      try {
+        const response = await fetch(
+          `/api/video-status?id=${encodeURIComponent(videoId)}`
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error || "Impossible de suivre la vidéo."
+          );
+        }
+
+        if (cancelled) return;
+
+        if (data.video) {
+          const nextStatus = data.video.status || "";
+
+          setVideoStatus(nextStatus);
+          setVideoProgress(data.video.progress ?? 0);
+
+          if (nextStatus === "completed") {
+            setVideoProgress(100);
+            setVideoUrl(
+              `/api/video-content?id=${encodeURIComponent(videoId)}`
+            );
+            return;
+          }
+
+          if (nextStatus === "failed") {
+            setError(
+              data.video.error?.message ||
+                "La génération vidéo a échoué."
+            );
+            return;
+          }
+        }
+
+        if (!cancelled) {
+          timeoutId = window.setTimeout(checkVideoStatus, 5000);
+        }
+      } catch (error) {
+        console.error("Erreur suivi Video:", error);
+
+        if (!cancelled) {
+          timeoutId = window.setTimeout(checkVideoStatus, 5000);
+        }
+      }
+    };
+
+    checkVideoStatus();
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [videoId, videoStatus]);
 
   useEffect(() => {
     if (!sourceImage) {
@@ -119,6 +201,9 @@ export default function AICentralPage() {
             message,
             imageSize,
             imageQuality,
+            videoSize,
+            videoSeconds,
+            videoModel,
           }),
         });
       }
@@ -135,6 +220,12 @@ export default function AICentralPage() {
           : data.route || "general"
       );
       setResult(data.result || "");
+
+      if (data.video?.id) {
+        setVideoId(data.video.id);
+        setVideoStatus(data.video.status || "");
+        setVideoProgress(data.video.progress ?? 0);
+      }
 
       if (data.image?.data) {
         const nextImageType = data.image.type || "";
@@ -358,6 +449,47 @@ export default function AICentralPage() {
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
                 {result}
               </div>
+            </div>
+          )}
+
+          {videoId && (
+            <div className="mt-6 rounded-3xl border border-cyan-400/20 bg-cyan-500/10 p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+                Génération vidéo
+              </p>
+
+              <p className="mt-3 text-sm text-slate-200">
+                Statut : <strong>{videoStatus || "inconnu"}</strong>
+              </p>
+
+              <p className="mt-2 text-sm text-slate-300">
+                Progression : {videoProgress} %
+              </p>
+
+              <p className="mt-2 break-all text-xs text-slate-400">
+                ID : {videoId}
+              </p>
+
+              {videoUrl && videoStatus === "completed" && (
+                <div className="mt-5">
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                    <video
+                      src={videoUrl}
+                      controls
+                      playsInline
+                      className="h-auto w-full"
+                    />
+                  </div>
+
+                  <a
+                    href={videoUrl}
+                    download={`CreatorBusinessAI-${videoId}.mp4`}
+                    className="mt-4 block rounded-2xl bg-cyan-500 px-5 py-3 text-center font-bold text-white transition hover:bg-cyan-400"
+                  >
+                    Télécharger la vidéo
+                  </a>
+                </div>
+              )}
             </div>
           )}
 

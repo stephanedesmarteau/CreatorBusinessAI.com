@@ -6,6 +6,11 @@ import {
 } from "@/lib/ai/agents";
 import { getCapability } from "@/lib/ai/capabilities";
 import { generateImage } from "@/lib/ai/image-engine";
+import {
+  generateVideo,
+  type VideoSize,
+  type VideoSeconds,
+} from "@/lib/ai/video-engine";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -35,6 +40,11 @@ export async function POST(request: Request) {
     const message = String(body.message ?? "").trim();
     const imageSize = String(body.imageSize ?? "1024x1024");
     const imageQuality = String(body.imageQuality ?? "medium");
+    const videoSize = String(body.videoSize ?? "1280x720") as VideoSize;
+    const videoSeconds = String(body.videoSeconds ?? "8") as VideoSeconds;
+    const videoModel = String(body.videoModel ?? "sora-2") as
+      | "sora-2"
+      | "sora-2-pro";
 
     if (!message) {
       return NextResponse.json(
@@ -124,6 +134,23 @@ Réponds uniquement avec le nom exact de la catégorie.
         message,
         capability,
         image,
+      });
+    }
+
+    if (route === "video") {
+      const video = await generateVideo(
+        message,
+        videoSize,
+        videoSeconds,
+        videoModel
+      );
+
+      return NextResponse.json({
+        success: true,
+        route,
+        message,
+        capability,
+        video,
       });
     }
 
