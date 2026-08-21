@@ -30,6 +30,38 @@ export default function AICentralPage() {
     };
   }, [sourceImage]);
 
+  async function useGeneratedImageAsSource() {
+    if (!imageData) return;
+
+    try {
+      const src =
+        imageType === "base64"
+          ? `data:${imageMimeType};base64,${imageData}`
+          : imageData;
+
+      const response = await fetch(src);
+      const blob = await response.blob();
+
+      const file = new File(
+        [blob],
+        "CreatorBusinessAI-edited.png",
+        {
+          type: blob.type || imageMimeType || "image/png",
+        }
+      );
+
+      setSourceImage(file);
+      setImageData("");
+      setResult("");
+      setRoute("");
+    } catch (error) {
+      console.error("Erreur reutilisation image:", error);
+      setError(
+        "Impossible d'utiliser cette image comme nouvelle source."
+      );
+    }
+  }
+
   function downloadImage() {
     if (!imageData) return;
 
@@ -249,10 +281,20 @@ export default function AICentralPage() {
               )}
             </div>
 
+            <div className="mb-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
+                {sourceImage ? "Modification souhaitée" : "Votre demande"}
+              </p>
+            </div>
+
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Exemple : Crée-moi une application mobile de réservation..."
+              placeholder={
+                sourceImage
+                  ? "Exemple : remplace le fond par un studio futuriste bleu, garde le sujet intact..."
+                  : "Exemple : Crée-moi une application mobile de réservation..."
+              }
               className="min-h-44 w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-white outline-none transition focus:border-blue-400/60"
             />
 
@@ -349,12 +391,21 @@ export default function AICentralPage() {
                 </div>
               )}
 
-              <button
-                onClick={downloadImage}
-                className="mt-4 w-full rounded-2xl bg-violet-500 px-5 py-3 font-bold text-white transition hover:bg-violet-400"
-              >
-                Télécharger l'image
-              </button>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  onClick={downloadImage}
+                  className="rounded-2xl bg-violet-500 px-5 py-3 font-bold text-white transition hover:bg-violet-400"
+                >
+                  Télécharger l'image
+                </button>
+
+                <button
+                  onClick={useGeneratedImageAsSource}
+                  className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 font-bold text-emerald-300 transition hover:bg-emerald-500/15"
+                >
+                  Modifier encore
+                </button>
+              </div>
             </div>
           )}
         </div>
