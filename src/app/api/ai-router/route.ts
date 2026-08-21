@@ -66,14 +66,20 @@ marketing
 general
 
 Règles :
-- business : création, analyse ou développement d'entreprise
-- code : programmation, sites, applications, logiciels
-- research : recherche, comparaison, collecte ou analyse d'informations
+- business : création, planification ou développement concret d'une entreprise, business plan, modèle économique ou stratégie d'entreprise
+- code : programmation, développement de sites web, applications, logiciels ou génération de code
+- research : PRIORITAIRE lorsque la demande consiste à rechercher, comparer, étudier, collecter ou analyser des informations, marchés, tendances, entreprises, produits ou stratégies
 - image : création ou modification d'images
 - video : création ou production vidéo
 - voice : voix, audio, transcription ou doublage
 - marketing : publicité, SEO, contenu, réseaux sociaux, acquisition
 - general : tout ce qui ne correspond pas clairement aux catégories précédentes
+
+Priorité de routage :
+- Si l'utilisateur demande principalement une comparaison, une recherche, une étude ou une analyse de plusieurs options, choisir research, même si le sujet concerne une entreprise.
+- Si l'utilisateur veut créer ou développer concrètement son entreprise, choisir business.
+- Si l'utilisateur demande de créer/programmer un site, une application ou du code, choisir code.
+- Si l'utilisateur demande de créer ou modifier une image, choisir image.
 
 Réponds uniquement avec le nom exact de la catégorie.
           `.trim(),
