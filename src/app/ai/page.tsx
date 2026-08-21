@@ -11,6 +11,7 @@ export default function AICentralPage() {
   const [imageMimeType, setImageMimeType] = useState("image/png");
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
+  const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,17 +44,33 @@ export default function AICentralPage() {
     setImageMimeType("image/png");
 
     try {
-      const response = await fetch("/api/ai-router", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message,
-          imageSize,
-          imageQuality,
-        }),
-      });
+      let response: Response;
+
+      if (sourceImage) {
+        const formData = new FormData();
+
+        formData.append("image", sourceImage);
+        formData.append("prompt", message);
+        formData.append("size", imageSize);
+        formData.append("quality", imageQuality);
+
+        response = await fetch("/api/image-edit", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        response = await fetch("/api/ai-router", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message,
+            imageSize,
+            imageQuality,
+          }),
+        });
+      }
 
       const data = await response.json();
 
@@ -61,7 +78,11 @@ export default function AICentralPage() {
         throw new Error(data.error || "Erreur du AI Router.");
       }
 
-      setRoute(data.route || "general");
+      setRoute(
+        sourceImage
+          ? "image"
+          : data.route || "general"
+      );
       setResult(data.result || "");
 
       if (data.image?.data) {
@@ -152,6 +173,35 @@ export default function AICentralPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block cursor-pointer rounded-2xl border border-dashed border-violet-400/30 bg-violet-500/10 p-5 text-center transition hover:bg-violet-500/15">
+                <span className="block text-sm font-bold text-white">
+                  Importer une image
+                </span>
+
+                <span className="mt-1 block text-xs text-slate-400">
+                  PNG, JPG ou WEBP
+                </span>
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) =>
+                    setSourceImage(e.target.files?.[0] || null)
+                  }
+                />
+              </label>
+
+              {sourceImage && (
+                <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
+                  <p className="text-xs font-semibold text-emerald-300">
+                    Image sélectionnée : {sourceImage.name}
+                  </p>
+                </div>
+              )}
             </div>
 
             <textarea
