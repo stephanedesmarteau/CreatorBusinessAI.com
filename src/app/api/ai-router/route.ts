@@ -121,10 +121,14 @@ Réponds uniquement avec le nom exact de la catégorie.
       });
     }
 
+    const useSol = ["business", "code", "research"].includes(route);
+    const agentModel = useSol ? "gpt-5.6-sol" : "gpt-5.6-terra";
+    const reasoningEffort = useSol ? "medium" : "low";
+
     const agentResponse = await client.responses.create({
-      model: "gpt-5.6",
+      model: agentModel,
       reasoning: {
-        effort: "low",
+        effort: reasoningEffort,
       },
       input: [
         {
