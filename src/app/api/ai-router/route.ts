@@ -33,6 +33,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const message = String(body.message ?? "").trim();
+    const imageSize = String(body.imageSize ?? "1024x1024");
 
     if (!message) {
       return NextResponse.json(
@@ -104,7 +105,7 @@ Réponds uniquement avec le nom exact de la catégorie.
     }
 
     if (route === "image") {
-      const image = await generateImage(message);
+      const image = await generateImage(message, imageSize);
 
       return NextResponse.json({
         success: true,

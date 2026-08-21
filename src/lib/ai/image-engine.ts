@@ -4,7 +4,10 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function generateImage(prompt: string) {
+export async function generateImage(
+  prompt: string,
+  size = "1024x1024"
+) {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("La clé API OpenAI est manquante.");
   }
@@ -12,7 +15,7 @@ export async function generateImage(prompt: string) {
   const result = await client.images.generate({
     model: "gpt-image-2",
     prompt,
-    size: "1024x1024",
+    size: size as "1024x1024" | "1536x1024" | "1024x1536",
     quality: "medium",
   });
 
