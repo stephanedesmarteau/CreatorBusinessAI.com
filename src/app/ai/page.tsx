@@ -11,6 +11,7 @@ export default function AICentralPage() {
   const [imageMimeType, setImageMimeType] = useState("image/png");
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
+  const [editMode, setEditMode] = useState<"full" | "mask">("full");
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [sourcePreview, setSourcePreview] = useState("");
   const [imageHistory, setImageHistory] = useState<
