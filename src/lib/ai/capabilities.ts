@@ -48,7 +48,7 @@ export const aiCapabilities: AICapability[] = [
     route: "image",
     name: "Image Engine",
     description: "Création et modification d'images",
-    enabled: false,
+    enabled: true,
     mode: "media",
   },
   {

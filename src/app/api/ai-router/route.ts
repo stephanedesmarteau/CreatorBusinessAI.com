@@ -5,6 +5,7 @@ import {
   type AIRoute,
 } from "@/lib/ai/agents";
 import { getCapability } from "@/lib/ai/capabilities";
+import { generateImage } from "@/lib/ai/image-engine";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -99,6 +100,18 @@ Réponds uniquement avec le nom exact de la catégorie.
         result:
           "La demande a été correctement identifiée, mais cette capacité " +
           "n'est pas encore activée dans CreatorBusinessAI.",
+      });
+    }
+
+    if (route === "image") {
+      const image = await generateImage(message);
+
+      return NextResponse.json({
+        success: true,
+        route,
+        message,
+        capability,
+        image,
       });
     }
 

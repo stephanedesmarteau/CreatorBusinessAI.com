@@ -6,6 +6,9 @@ export default function AICentralPage() {
   const [message, setMessage] = useState("");
   const [route, setRoute] = useState("");
   const [result, setResult] = useState("");
+  const [imageData, setImageData] = useState("");
+  const [imageType, setImageType] = useState("");
+  const [imageMimeType, setImageMimeType] = useState("image/png");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -16,6 +19,9 @@ export default function AICentralPage() {
     setError("");
     setRoute("");
     setResult("");
+    setImageData("");
+    setImageType("");
+    setImageMimeType("image/png");
 
     try {
       const response = await fetch("/api/ai-router", {
@@ -36,6 +42,12 @@ export default function AICentralPage() {
 
       setRoute(data.route || "general");
       setResult(data.result || "");
+
+      if (data.image?.data) {
+        setImageData(data.image.data);
+        setImageType(data.image.type || "");
+        setImageMimeType(data.image.mimeType || "image/png");
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -117,6 +129,26 @@ export default function AICentralPage() {
 
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
                 {result}
+              </div>
+            </div>
+          )}
+
+          {imageData && (
+            <div className="mt-6 rounded-3xl border border-violet-400/20 bg-violet-500/10 p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-violet-300">
+                Image générée
+              </p>
+
+              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                <img
+                  src={
+                    imageType === "base64"
+                      ? `data:${imageMimeType};base64,${imageData}`
+                      : imageData
+                  }
+                  alt="Image générée par CreatorBusinessAI"
+                  className="h-auto w-full object-contain"
+                />
               </div>
             </div>
           )}
