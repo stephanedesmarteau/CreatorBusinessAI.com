@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# CreatorBusinessAI local / backup files
+/creatorbusinessai@0.1.0
+/next
+/src/app/api/ai-router/route.backup.ts
