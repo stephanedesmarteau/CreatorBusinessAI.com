@@ -16,6 +16,9 @@ export default function AICentralPage() {
   const [videoSize, setVideoSize] = useState("1280x720");
   const [videoSeconds, setVideoSeconds] = useState("8");
   const [videoModel, setVideoModel] = useState("sora-2");
+  const [audioData, setAudioData] = useState("");
+  const [audioMimeType, setAudioMimeType] = useState("audio/mpeg");
+  const [voiceName, setVoiceName] = useState("cedar");
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
@@ -204,6 +207,7 @@ export default function AICentralPage() {
             videoSize,
             videoSeconds,
             videoModel,
+            voiceName,
           }),
         });
       }
@@ -220,6 +224,11 @@ export default function AICentralPage() {
           : data.route || "general"
       );
       setResult(data.result || "");
+
+      if (data.audio?.data) {
+        setAudioData(data.audio.data);
+        setAudioMimeType(data.audio.mimeType || "audio/mpeg");
+      }
 
       if (data.video?.id) {
         setVideoId(data.video.id);
@@ -449,6 +458,28 @@ export default function AICentralPage() {
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
                 {result}
               </div>
+            </div>
+          )}
+
+          {audioData && (
+            <div className="mt-6 rounded-3xl border border-amber-400/20 bg-amber-500/10 p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
+                Audio généré
+              </p>
+
+              <audio
+                controls
+                className="mt-4 w-full"
+                src={`data:${audioMimeType};base64,${audioData}`}
+              />
+
+              <a
+                href={`data:${audioMimeType};base64,${audioData}`}
+                download="CreatorBusinessAI-audio.mp3"
+                className="mt-4 block rounded-2xl bg-amber-500 px-5 py-3 text-center font-bold text-white transition hover:bg-amber-400"
+              >
+                Télécharger l'audio
+              </a>
             </div>
           )}
 

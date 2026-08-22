@@ -11,6 +11,10 @@ import {
   type VideoSize,
   type VideoSeconds,
 } from "@/lib/ai/video-engine";
+import {
+  generateVoice,
+  type VoiceName,
+} from "@/lib/ai/voice-engine";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
     const videoModel = String(body.videoModel ?? "sora-2") as
       | "sora-2"
       | "sora-2-pro";
+    const voiceName = String(body.voiceName ?? "cedar") as VoiceName;
 
     if (!message) {
       return NextResponse.json(
@@ -151,6 +156,21 @@ Réponds uniquement avec le nom exact de la catégorie.
         message,
         capability,
         video,
+      });
+    }
+
+    if (route === "voice") {
+      const audio = await generateVoice(
+        message,
+        voiceName
+      );
+
+      return NextResponse.json({
+        success: true,
+        route,
+        message,
+        capability,
+        audio,
       });
     }
 

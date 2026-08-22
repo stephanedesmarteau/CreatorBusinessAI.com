@@ -62,7 +62,7 @@ export const aiCapabilities: AICapability[] = [
     route: "voice",
     name: "Voice Engine",
     description: "Voix, audio, transcription et doublage",
-    enabled: false,
+    enabled: true,
     mode: "media",
   },
 ];
