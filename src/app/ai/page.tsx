@@ -19,6 +19,9 @@ export default function AICentralPage() {
   const [audioData, setAudioData] = useState("");
   const [audioMimeType, setAudioMimeType] = useState("audio/mpeg");
   const [voiceName, setVoiceName] = useState("cedar");
+  const [sourceAudio, setSourceAudio] = useState<File | null>(null);
+  const [transcription, setTranscription] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
@@ -148,6 +151,43 @@ export default function AICentralPage() {
       setError(
         "Impossible d'utiliser cette image comme nouvelle source."
       );
+    }
+  }
+
+  async function transcribeAudio() {
+    if (!sourceAudio) return;
+
+    setTranscribing(true);
+    setError("");
+    setTranscription("");
+
+    try {
+      const formData = new FormData();
+      formData.append("audio", sourceAudio);
+
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Impossible de transcrire l'audio."
+        );
+      }
+
+      setTranscription(data.text || "");
+      setRoute("voice");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue pendant la transcription."
+      );
+    } finally {
+      setTranscribing(false);
     }
   }
 
@@ -403,6 +443,46 @@ export default function AICentralPage() {
               )}
             </div>
 
+            <div className="mb-4">
+              <label className="block cursor-pointer rounded-2xl border border-dashed border-amber-400/30 bg-amber-500/10 p-5 text-center transition hover:bg-amber-500/15">
+                <span className="block text-sm font-bold text-white">
+                  Importer un audio
+                </span>
+
+                <span className="mt-1 block text-xs text-slate-400">
+                  MP3, WAV, M4A, WEBM
+                </span>
+
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) =>
+                    setSourceAudio(e.target.files?.[0] || null)
+                  }
+                />
+              </label>
+
+              {sourceAudio && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-semibold text-amber-300">
+                    Audio sélectionné : {sourceAudio.name}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={transcribeAudio}
+                    disabled={transcribing}
+                    className="mt-3 w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {transcribing
+                      ? "Transcription en cours..."
+                      : "Transcrire l'audio"}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="mb-2">
               <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
                 {sourceImage ? "Modification souhaitée" : "Votre demande"}
@@ -458,6 +538,26 @@ export default function AICentralPage() {
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
                 {result}
               </div>
+            </div>
+          )}
+
+          {transcription && (
+            <div className="mt-6 rounded-3xl border border-amber-400/20 bg-amber-500/10 p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
+                Transcription audio
+              </p>
+
+              <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                {transcription}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMessage(transcription)}
+                className="mt-4 rounded-2xl border border-blue-400/20 bg-blue-500/10 px-5 py-3 font-bold text-blue-300 transition hover:bg-blue-500/15"
+              >
+                Utiliser ce texte dans AI Central
+              </button>
             </div>
           )}
 
