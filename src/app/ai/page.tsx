@@ -22,6 +22,7 @@ export default function AICentralPage() {
   const [sourceAudio, setSourceAudio] = useState<File | null>(null);
   const [transcription, setTranscription] = useState("");
   const [transcribing, setTranscribing] = useState(false);
+  const [autoRunTranscription, setAutoRunTranscription] = useState(false);
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
@@ -160,6 +161,15 @@ export default function AICentralPage() {
     setTranscribing(true);
     setError("");
     setTranscription("");
+    setRoute("");
+    setResult("");
+    setAudioData("");
+    setVideoId("");
+    setVideoStatus("");
+    setVideoProgress(0);
+    setVideoUrl("");
+    setImageData("");
+    setImageType("");
 
     try {
       const formData = new FormData();
@@ -178,8 +188,63 @@ export default function AICentralPage() {
         );
       }
 
-      setTranscription(data.text || "");
-      setRoute("voice");
+      const text = data.text || "";
+
+      setTranscription(text);
+
+      if (autoRunTranscription && text.trim()) {
+        setMessage(text);
+
+        const aiResponse = await fetch("/api/ai-router", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: text,
+            imageSize,
+            imageQuality,
+            videoSize,
+            videoSeconds,
+            videoModel,
+            voiceName,
+          }),
+        });
+
+        const aiData = await aiResponse.json();
+
+        if (!aiResponse.ok) {
+          throw new Error(
+            aiData.error || "Erreur du AI Router."
+          );
+        }
+
+        setRoute(aiData.route || "general");
+        setResult(aiData.result || "");
+
+        if (aiData.audio?.data) {
+          setAudioData(aiData.audio.data);
+          setAudioMimeType(
+            aiData.audio.mimeType || "audio/mpeg"
+          );
+        }
+
+        if (aiData.video?.id) {
+          setVideoId(aiData.video.id);
+          setVideoStatus(aiData.video.status || "");
+          setVideoProgress(aiData.video.progress ?? 0);
+        }
+
+        if (aiData.image?.data) {
+          setImageData(aiData.image.data);
+          setImageType(aiData.image.type || "");
+          setImageMimeType(
+            aiData.image.mimeType || "image/png"
+          );
+        }
+      } else {
+        setRoute("voice");
+      }
     } catch (error) {
       setError(
         error instanceof Error
@@ -479,6 +544,21 @@ export default function AICentralPage() {
                       ? "Transcription en cours..."
                       : "Transcrire l'audio"}
                   </button>
+
+                  <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                    <input
+                      type="checkbox"
+                      checked={autoRunTranscription}
+                      onChange={(e) =>
+                        setAutoRunTranscription(e.target.checked)
+                      }
+                      className="h-4 w-4"
+                    />
+
+                    <span className="text-sm text-slate-300">
+                      Envoyer automatiquement la transcription à AI Central
+                    </span>
+                  </label>
                 </div>
               )}
             </div>
