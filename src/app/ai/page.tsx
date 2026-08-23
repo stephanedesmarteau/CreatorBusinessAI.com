@@ -19,6 +19,7 @@ export default function AICentralPage() {
   const [audioData, setAudioData] = useState("");
   const [audioMimeType, setAudioMimeType] = useState("audio/mpeg");
   const [voiceName, setVoiceName] = useState("cedar");
+  const [autoSpeakResponse, setAutoSpeakResponse] = useState(false);
   const [sourceAudio, setSourceAudio] = useState<File | null>(null);
   const [transcription, setTranscription] = useState("");
   const [transcribing, setTranscribing] = useState(false);
@@ -155,10 +156,39 @@ export default function AICentralPage() {
     }
   }
 
+  async function speakAgentResponse(text: string) {
+    if (!text.trim()) return;
+
+    const response = await fetch("/api/speak", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        voiceName,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Impossible de générer la réponse vocale."
+      );
+    }
+
+    if (data.audio?.data) {
+      setAudioData(data.audio.data);
+      setAudioMimeType(data.audio.mimeType || "audio/mpeg");
+    }
+  }
+
   async function transcribeAudio() {
     if (!sourceAudio) return;
 
     setTranscribing(true);
+    setLoading(false);
     setError("");
     setTranscription("");
     setRoute("");
@@ -172,87 +202,142 @@ export default function AICentralPage() {
     setImageType("");
 
     try {
+      // ÉTAPE 1 — AUDIO → TEXTE
       const formData = new FormData();
       formData.append("audio", sourceAudio);
 
-      const response = await fetch("/api/transcribe", {
+      const transcriptionResponse = await fetch("/api/transcribe", {
         method: "POST",
         body: formData,
       });
 
-      const data = await response.json();
+      const transcriptionData =
+        await transcriptionResponse.json();
 
-      if (!response.ok) {
+      if (!transcriptionResponse.ok) {
         throw new Error(
-          data.error || "Impossible de transcrire l'audio."
+          transcriptionData.error ||
+            "Impossible de transcrire l'audio."
         );
       }
 
-      const text = data.text || "";
+      const text = String(
+        transcriptionData.text || ""
+      ).trim();
+
+      if (!text) {
+        throw new Error(
+          "La transcription audio est vide."
+        );
+      }
 
       setTranscription(text);
+      setMessage(text);
+      setTranscribing(false);
 
-      if (autoRunTranscription && text.trim()) {
-        setMessage(text);
-
-        const aiResponse = await fetch("/api/ai-router", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: text,
-            imageSize,
-            imageQuality,
-            videoSize,
-            videoSeconds,
-            videoModel,
-            voiceName,
-          }),
-        });
-
-        const aiData = await aiResponse.json();
-
-        if (!aiResponse.ok) {
-          throw new Error(
-            aiData.error || "Erreur du AI Router."
-          );
-        }
-
-        setRoute(aiData.route || "general");
-        setResult(aiData.result || "");
-
-        if (aiData.audio?.data) {
-          setAudioData(aiData.audio.data);
-          setAudioMimeType(
-            aiData.audio.mimeType || "audio/mpeg"
-          );
-        }
-
-        if (aiData.video?.id) {
-          setVideoId(aiData.video.id);
-          setVideoStatus(aiData.video.status || "");
-          setVideoProgress(aiData.video.progress ?? 0);
-        }
-
-        if (aiData.image?.data) {
-          setImageData(aiData.image.data);
-          setImageType(aiData.image.type || "");
-          setImageMimeType(
-            aiData.image.mimeType || "image/png"
-          );
-        }
-      } else {
+      // Mode transcription seulement.
+      if (!autoRunTranscription) {
         setRoute("voice");
+        return;
+      }
+
+      // ÉTAPE 2 — TRANSCRIPTION → AI CENTRAL
+      setLoading(true);
+
+      const routedMessage = `
+Voici la transcription audio de l'utilisateur :
+
+${text}
+
+Traite le contenu ci-dessus comme la demande réelle de l'utilisateur.
+
+Important :
+- Ne choisis la route "voice" que si l'utilisateur demande explicitement
+  une lecture vocale, une voix, une transcription, de l'audio ou du doublage.
+- Si le contenu est informatif sans instruction explicite, réponds utilement
+  au contenu au lieu de simplement le convertir en voix.
+      `.trim();
+
+      const aiResponse = await fetch("/api/ai-router", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: routedMessage,
+          imageSize,
+          imageQuality,
+          videoSize,
+          videoSeconds,
+          videoModel,
+          voiceName,
+        }),
+      });
+
+      const aiData = await aiResponse.json();
+
+      if (!aiResponse.ok) {
+        throw new Error(
+          aiData.error || "Erreur du AI Router."
+        );
+      }
+
+      const nextRoute =
+        aiData.route || "general";
+
+      const nextResult =
+        aiData.result || "";
+
+      setRoute(nextRoute);
+      setResult(nextResult);
+
+      // ÉTAPE 3 — MÉDIAS RETOURNÉS PAR LE ROUTEUR
+      if (aiData.audio?.data) {
+        setAudioData(aiData.audio.data);
+        setAudioMimeType(
+          aiData.audio.mimeType || "audio/mpeg"
+        );
+      }
+
+      if (aiData.video?.id) {
+        setVideoId(aiData.video.id);
+        setVideoStatus(aiData.video.status || "");
+        setVideoProgress(
+          aiData.video.progress ?? 0
+        );
+      }
+
+      if (aiData.image?.data) {
+        setImageData(aiData.image.data);
+        setImageType(aiData.image.type || "");
+        setImageMimeType(
+          aiData.image.mimeType || "image/png"
+        );
+      }
+
+      // ÉTAPE 4 — RÉPONSE TEXTE → VOIX
+      // Appel direct à /api/speak, sans repasser par AI Router.
+      if (
+        autoSpeakResponse &&
+        nextResult.trim() &&
+        nextRoute !== "voice"
+      ) {
+        await speakAgentResponse(nextResult);
       }
     } catch (error) {
+      console.error(
+        "Erreur chaîne multimodale:",
+        error
+      );
+
       setError(
         error instanceof Error
           ? error.message
-          : "Une erreur est survenue pendant la transcription."
+          : "Une erreur est survenue pendant la chaîne multimodale."
       );
     } finally {
       setTranscribing(false);
+      setLoading(false);
     }
   }
 
@@ -323,12 +408,23 @@ export default function AICentralPage() {
         throw new Error(data.error || "Erreur du AI Router.");
       }
 
-      setRoute(
+      const nextRoute =
         sourceImage
           ? "image"
-          : data.route || "general"
-      );
-      setResult(data.result || "");
+          : data.route || "general";
+
+      const nextResult = data.result || "";
+
+      setRoute(nextRoute);
+      setResult(nextResult);
+
+      if (
+        autoSpeakResponse &&
+        nextResult.trim() &&
+        nextRoute !== "voice"
+      ) {
+        await speakAgentResponse(nextResult);
+      }
 
       if (data.audio?.data) {
         setAudioData(data.audio.data);
@@ -557,6 +653,21 @@ export default function AICentralPage() {
 
                     <span className="text-sm text-slate-300">
                       Envoyer automatiquement la transcription à AI Central
+                    </span>
+                  </label>
+
+                  <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                    <input
+                      type="checkbox"
+                      checked={autoSpeakResponse}
+                      onChange={(e) =>
+                        setAutoSpeakResponse(e.target.checked)
+                      }
+                      className="h-4 w-4"
+                    />
+
+                    <span className="text-sm text-slate-300">
+                      Lire automatiquement la réponse de l'IA
                     </span>
                   </label>
                 </div>
