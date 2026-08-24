@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 export default function AICentralPage() {
   const [message, setMessage] = useState("");
+  const [superMode, setSuperMode] = useState(true);
+  const [orchestratorData, setOrchestratorData] = useState<any>(null);
   const [route, setRoute] = useState("");
   const [result, setResult] = useState("");
   const [imageData, setImageData] = useState("");
@@ -365,6 +367,7 @@ Important :
     setError("");
     setRoute("");
     setResult("");
+    setOrchestratorData(null);
     setImageData("");
     setImageType("");
     setImageMimeType("image/png");
@@ -385,7 +388,11 @@ Important :
           body: formData,
         });
       } else {
-        response = await fetch("/api/ai-router", {
+        response = await fetch(
+          superMode
+            ? "/api/orchestrator"
+            : "/api/ai-router",
+          {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -399,10 +406,15 @@ Important :
             videoModel,
             voiceName,
           }),
-        });
+          }
+        );
       }
 
       const data = await response.json();
+
+      if (data.orchestrator) {
+        setOrchestratorData(data.orchestrator);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Erreur du AI Router.");
@@ -691,14 +703,40 @@ Important :
               className="min-h-44 w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-white outline-none transition focus:border-blue-400/60"
             />
 
+            <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-4">
+              <div>
+                <p className="text-sm font-bold text-fuchsia-200">
+                  Mode Super AI
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {superMode
+                    ? "ACTIVÉ — plusieurs agents collaborent, planifient et synthétisent la mission."
+                    : "DÉSACTIVÉ — une seule route IA sera utilisée."}
+                </p>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={superMode}
+                onChange={(e) =>
+                  setSuperMode(e.target.checked)
+                }
+                className="h-5 w-5"
+              />
+            </label>
+
             <button
               onClick={routeRequest}
               disabled={loading || !message.trim()}
               className="mt-4 w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
-                ? "Analyse de la demande..."
-                : "Lancer CreatorBusinessAI →"}
+                ? superMode
+                  ? "Super AI en cours..."
+                  : "Analyse de la demande..."
+                : superMode
+                  ? "Lancer Super AI →"
+                  : "Lancer CreatorBusinessAI →"}
             </button>
           </div>
 
@@ -717,6 +755,47 @@ Important :
               <p className="mt-2 text-2xl font-bold capitalize text-white">
                 {route}
               </p>
+            </div>
+          )}
+
+          {orchestratorData && (
+            <div className="mt-6 rounded-3xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">
+                Super Orchestrator
+              </p>
+
+              <p className="mt-3 text-sm text-slate-200">
+                {orchestratorData.strategy}
+              </p>
+
+              <div className="mt-5 grid gap-3">
+                {orchestratorData.steps?.map(
+                  (step: any, index: number) => (
+                    <div
+                      key={step.id || index}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-bold text-white">
+                          {index + 1}. {step.title}
+                        </p>
+
+                        <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-xs font-bold uppercase text-fuchsia-200">
+                          {step.agent}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm text-slate-300">
+                        {step.objective}
+                      </p>
+
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                        {step.status}
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
             </div>
           )}
 
