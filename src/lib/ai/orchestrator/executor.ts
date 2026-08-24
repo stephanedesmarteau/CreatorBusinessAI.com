@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { agentInstructions } from "@/lib/ai/agents";
+import { researchWeb } from "@/lib/ai/research-engine";
 import type {
   OrchestratorAgent,
   OrchestratorPlan,
@@ -12,12 +13,72 @@ const client = new OpenAI({
 });
 
 function getModel(agent: OrchestratorAgent) {
-  return ["business", "code", "research"].includes(agent)
+  return ["business", "code"].includes(agent)
     ? "gpt-5.6-sol"
     : "gpt-5.6-terra";
 }
 
-async function executeStep(
+async function executeResearchStep(
+  mission: string,
+  step: OrchestratorStep
+): Promise<OrchestratorStepResult> {
+  try {
+    const research = await researchWeb(`
+MISSION GLOBALE
+${mission}
+
+OBJECTIF DE RECHERCHE
+${step.objective}
+
+Effectue une recherche Web réelle et récente.
+Privilégie les sources officielles, primaires et fiables.
+Produis une synthèse exploitable par les autres agents.
+    `.trim());
+
+    const sourcesText =
+      research.sources.length > 0
+        ? research.sources
+            .map(
+              (source, index) =>
+                `[${index + 1}] ${source.title} — ${source.url}`
+            )
+            .join("\n")
+        : "Aucune source structurée retournée.";
+
+    return {
+      id: step.id,
+      title: step.title,
+      agent: step.agent,
+      objective: step.objective,
+      status: "completed",
+      output: `
+${research.text}
+
+SOURCES WEB
+${sourcesText}
+      `.trim(),
+    };
+  } catch (error) {
+    console.error(
+      "Erreur Research Web Orchestrator:",
+      error
+    );
+
+    return {
+      id: step.id,
+      title: step.title,
+      agent: step.agent,
+      objective: step.objective,
+      status: "failed",
+      output:
+        error instanceof Error
+          ? error.message
+          : "Erreur inconnue pendant la recherche Web.",
+    };
+  }
+}
+
+async function executeStandardStep(
   mission: string,
   step: OrchestratorStep
 ): Promise<OrchestratorStepResult> {
@@ -46,8 +107,6 @@ Règles :
 - Sois concret, précis et exploitable.
 - Évite les longues introductions.
 - Fournis une sortie que le Chief Orchestrator pourra fusionner.
-- Ne prétends pas avoir utilisé Internet si aucun moteur Web réel
-  n'est connecté.
           `.trim(),
         },
         {
@@ -98,12 +157,32 @@ Produis ton analyse spécialisée.
   }
 }
 
+async function executeStep(
+  mission: string,
+  step: OrchestratorStep
+): Promise<OrchestratorStepResult> {
+  if (step.agent === "research") {
+    return executeResearchStep(
+      mission,
+      step
+    );
+  }
+
+  return executeStandardStep(
+    mission,
+    step
+  );
+}
+
 export async function executeOrchestratorPlan(
   plan: OrchestratorPlan
 ): Promise<OrchestratorStepResult[]> {
   return Promise.all(
     plan.steps.map((step) =>
-      executeStep(plan.mission, step)
+      executeStep(
+        plan.mission,
+        step
+      )
     )
   );
 }
