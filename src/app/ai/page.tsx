@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function AICentralPage() {
   const [message, setMessage] = useState("");
+  const [conversationId, setConversationId] = useState("");
   const [superMode, setSuperMode] = useState(true);
   const [orchestratorData, setOrchestratorData] = useState<any>(null);
   const [route, setRoute] = useState("");
@@ -360,6 +361,174 @@ Important :
     link.remove();
   }
 
+  async function ensureConversation() {
+    if (conversationId) {
+      return conversationId;
+    }
+
+    try {
+      const response = await fetch("/api/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title:
+            message.trim().slice(0, 80) ||
+            "Conversation AI Central",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.conversation?.id) {
+        throw new Error(
+          data.error ||
+            "Impossible de créer la conversation."
+        );
+      }
+
+      const id = String(data.conversation.id);
+      setConversationId(id);
+
+      return id;
+    } catch (error) {
+      console.warn(
+        "Conversation persistante indisponible:",
+        error
+      );
+
+      return "";
+    }
+  }
+
+  async function getConversationContext(
+    activeConversationId: string
+  ) {
+    if (!activeConversationId) {
+      return "";
+    }
+
+    try {
+      const response = await fetch(
+        `/api/messages?conversationId=${encodeURIComponent(
+          activeConversationId
+        )}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !Array.isArray(data.messages)) {
+        return "";
+      }
+
+      const recent = data.messages.slice(-12);
+
+      if (!recent.length) {
+        return "";
+      }
+
+      return recent
+        .map((item: any) => {
+          const role =
+            item.role === "USER"
+              ? "Utilisateur"
+              : item.role === "ASSISTANT"
+                ? "CreatorBusinessAI"
+                : item.role;
+
+          return `${role}: ${item.content}`;
+        })
+        .join("\\n\\n");
+    } catch (error) {
+      console.warn(
+        "Contexte conversation indisponible:",
+        error
+      );
+
+      return "";
+    }
+  }
+
+  async function saveConversationMessage(
+    activeConversationId: string,
+    role: "USER" | "ASSISTANT" | "SYSTEM" | "TOOL",
+    content: string,
+    options?: {
+      route?: string;
+      model?: string;
+      metadata?: unknown;
+    }
+  ) {
+    if (
+      !activeConversationId ||
+      !content.trim()
+    ) {
+      return;
+    }
+
+    try {
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId: activeConversationId,
+          role,
+          content,
+          route: options?.route,
+          model: options?.model,
+          metadata: options?.metadata,
+        }),
+      });
+    } catch (error) {
+      console.warn(
+        "Sauvegarde message indisponible:",
+        error
+      );
+    }
+  }
+
+  async function saveAgentRuns(
+    orchestrator: any
+  ) {
+    if (!orchestrator?.steps) {
+      return;
+    }
+
+    const steps = Array.isArray(
+      orchestrator.steps
+    )
+      ? orchestrator.steps
+      : [];
+
+    await Promise.allSettled(
+      steps.map((step: any) =>
+        fetch("/api/agent-runs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            agent: step.agent || "unknown",
+            objective: step.objective || "",
+            status:
+              step.status === "failed"
+                ? "FAILED"
+                : "COMPLETED",
+            input: {
+              title: step.title || "",
+            },
+            output: {
+              text: step.output || "",
+            },
+          }),
+        })
+      )
+    );
+  }
+
   async function routeRequest() {
     if (!message.trim()) return;
 
@@ -373,6 +542,35 @@ Important :
     setImageMimeType("image/png");
 
     try {
+      const activeConversationId =
+        await ensureConversation();
+
+      const previousContext =
+        await getConversationContext(
+          activeConversationId
+        );
+
+      await saveConversationMessage(
+        activeConversationId,
+        "USER",
+        message
+      );
+
+      const contextualMessage =
+        previousContext.trim()
+          ? `
+CONTEXTE DE CONVERSATION PERSISTANT
+
+${previousContext}
+
+NOUVELLE DEMANDE DE L'UTILISATEUR
+
+${message}
+
+Réponds principalement à la nouvelle demande, en utilisant le contexte précédent seulement lorsqu'il est pertinent.
+            `.trim()
+          : message;
+
       let response: Response;
 
       if (sourceImage) {
@@ -398,7 +596,7 @@ Important :
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            message,
+            message: contextualMessage,
             imageSize,
             imageQuality,
             videoSize,
@@ -429,6 +627,33 @@ Important :
 
       setRoute(nextRoute);
       setResult(nextResult);
+
+      if (nextResult.trim()) {
+        await saveConversationMessage(
+          activeConversationId,
+          "ASSISTANT",
+          nextResult,
+          {
+            route: nextRoute,
+            metadata: data.orchestrator
+              ? {
+                  orchestrator: {
+                    strategy:
+                      data.orchestrator.strategy,
+                    plan:
+                      data.orchestrator.plan,
+                  },
+                }
+              : undefined,
+          }
+        );
+      }
+
+      if (data.orchestrator) {
+        await saveAgentRuns(
+          data.orchestrator
+        );
+      }
 
       if (
         autoSpeakResponse &&
