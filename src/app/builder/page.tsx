@@ -47,6 +47,12 @@ export default function BuilderPage() {
   const [error, setError] =
     useState("");
 
+  const [editInstruction, setEditInstruction] =
+    useState("");
+
+  const [editingFile, setEditingFile] =
+    useState(false);
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -158,6 +164,110 @@ export default function BuilderPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function editSelectedFile() {
+    if (
+      !selectedFile ||
+      !editInstruction.trim() ||
+      !project
+    ) {
+      return;
+    }
+
+    const savedProject = savedProjects.find(
+      (item) => item.id === project.id
+    );
+
+    const savedFile = savedProject?.files.find(
+      (file) => file.path === selectedFile.path
+    );
+
+    if (!savedFile?.id) {
+      setError(
+        "Impossible d'identifier ce fichier dans PostgreSQL."
+      );
+      return;
+    }
+
+    setEditingFile(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-file",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            fileId: savedFile.id,
+            instruction:
+              editInstruction.trim(),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de modifier le fichier."
+        );
+      }
+
+      const updatedContent =
+        String(
+          data.file?.content ?? ""
+        );
+
+      setProject((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          files: current.files.map(
+            (file) =>
+              file.path === selectedFile.path
+                ? {
+                    ...file,
+                    content:
+                      updatedContent,
+                  }
+                : file
+          ),
+        };
+      });
+
+      setEditInstruction("");
+
+      await loadSavedProjects();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue pendant l'édition."
+      );
+    } finally {
+      setEditingFile(false);
+    }
+  }
+
+  function downloadProjectZip() {
+    if (!project?.id) {
+      setError(
+        "Ce projet doit être sauvegardé avant l'export."
+      );
+      return;
+    }
+
+    window.location.href =
+      `/api/builder-export?projectId=${encodeURIComponent(
+        project.id
+      )}`;
   }
 
   function openSavedProject(
@@ -389,6 +499,16 @@ export default function BuilderPage() {
                     </p>
                   )}
 
+                  {project.id && (
+                    <button
+                      type="button"
+                      onClick={downloadProjectZip}
+                      className="mt-5 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-400"
+                    >
+                      Télécharger le projet ZIP
+                    </button>
+                  )}
+
                   {project.stack &&
                     project.stack.length >
                       0 && (
@@ -463,6 +583,39 @@ export default function BuilderPage() {
                         </button>
                       )}
                     </div>
+
+                    {selectedFile && (
+                      <div className="border-b border-white/10 p-5">
+                        <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
+                          Modifier ce fichier avec l'IA
+                        </p>
+
+                        <textarea
+                          value={editInstruction}
+                          onChange={(e) =>
+                            setEditInstruction(
+                              e.target.value
+                            )
+                          }
+                          placeholder="Exemple : rends le hero plus premium, ajoute un CTA secondaire et améliore l'espacement mobile."
+                          className="mt-3 min-h-24 w-full rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-400/60"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={editSelectedFile}
+                          disabled={
+                            editingFile ||
+                            !editInstruction.trim()
+                          }
+                          className="mt-3 w-full rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {editingFile
+                            ? "Modification en cours..."
+                            : "Modifier ce fichier avec l'IA"}
+                        </button>
+                      </div>
+                    )}
 
                     <pre className="max-h-[700px] overflow-auto p-5 text-xs leading-6 text-slate-200">
                       <code>
