@@ -62,6 +62,21 @@ export default function BuilderPage() {
   const [previewError, setPreviewError] =
     useState("");
 
+  const [projectInstruction, setProjectInstruction] =
+    useState("");
+
+  const [editingProject, setEditingProject] =
+    useState(false);
+
+  const [projectEditSummary, setProjectEditSummary] =
+    useState("");
+
+  const [projectEditPlan, setProjectEditPlan] =
+    useState<string[]>([]);
+
+  const [changedFiles, setChangedFiles] =
+    useState<string[]>([]);
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -264,6 +279,125 @@ export default function BuilderPage() {
       );
     } finally {
       setEditingFile(false);
+    }
+  }
+
+  async function editWholeProject() {
+    if (
+      !project?.id ||
+      !projectInstruction.trim()
+    ) {
+      return;
+    }
+
+    setEditingProject(true);
+    setError("");
+    setProjectEditSummary("");
+    setProjectEditPlan([]);
+    setChangedFiles([]);
+
+    try {
+      const response = await fetch(
+        "/api/builder-project-edit",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId: project.id,
+            instruction:
+              projectInstruction.trim(),
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de modifier le projet."
+        );
+      }
+
+      const nextFiles =
+        Array.isArray(data.files)
+          ? data.files.map(
+              (file: any) => ({
+                path:
+                  String(file.path || ""),
+                content:
+                  String(file.content || ""),
+              })
+            )
+          : [];
+
+      setProject((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          files: nextFiles,
+        };
+      });
+
+      setProjectEditSummary(
+        String(
+          data.summary ||
+            "Projet mis à jour."
+        )
+      );
+
+      setProjectEditPlan(
+        Array.isArray(data.plan)
+          ? data.plan.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setChangedFiles(
+        Array.isArray(
+          data.changedFiles
+        )
+          ? data.changedFiles.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setProjectInstruction("");
+      setPreviewHtml("");
+      setPreviewError("");
+
+      if (
+        nextFiles.length &&
+        !nextFiles.some(
+          (file: BuilderFile) =>
+            file.path === selectedPath
+        )
+      ) {
+        setSelectedPath(
+          nextFiles[0].path
+        );
+      }
+
+      await loadSavedProjects();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue pendant la modification du projet."
+      );
+    } finally {
+      setEditingProject(false);
     }
   }
 
@@ -560,6 +694,84 @@ export default function BuilderPage() {
                         project.description
                       }
                     </p>
+                  )}
+
+                  {project.id && (
+                    <div className="mt-6 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-5">
+                      <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">
+                        Agent développeur autonome
+                      </p>
+
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        Demande une modification globale. CreatorBusinessAI analysera le projet entier et modifiera plusieurs fichiers si nécessaire.
+                      </p>
+
+                      <textarea
+                        value={projectInstruction}
+                        onChange={(e) =>
+                          setProjectInstruction(
+                            e.target.value
+                          )
+                        }
+                        placeholder="Exemple : ajoute une page Contact, mets à jour la navigation, ajoute un CTA Contact dans le Hero et harmonise le footer."
+                        className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-fuchsia-400/60"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={editWholeProject}
+                        disabled={
+                          editingProject ||
+                          !projectInstruction.trim()
+                        }
+                        className="mt-3 w-full rounded-2xl bg-fuchsia-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {editingProject
+                          ? "Modification du projet..."
+                          : "Améliorer tout le projet avec l'IA"}
+                      </button>
+
+                      {projectEditSummary && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <p className="text-sm font-bold text-white">
+                            {projectEditSummary}
+                          </p>
+
+                          {projectEditPlan.length > 0 && (
+                            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-300">
+                              {projectEditPlan.map(
+                                (item, index) => (
+                                  <li key={`${item}-${index}`}>
+                                    {item}
+                                  </li>
+                                )
+                              )}
+                            </ol>
+                          )}
+
+                          {changedFiles.length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                                Fichiers modifiés
+                              </p>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {changedFiles.map(
+                                  (file) => (
+                                    <span
+                                      key={file}
+                                      className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200"
+                                    >
+                                      {file}
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {project.id && (
