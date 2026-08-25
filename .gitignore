@@ -45,3 +45,11 @@ next-env.d.ts
 /next
 /src/app/api/ai-router/route.backup.ts
 /.chapter-backups/
+
+/src/generated/prisma
+
+# Local AI development tools
+/.agents/
+/.claude/
+/.windsurf/
+/skills-lock.json
