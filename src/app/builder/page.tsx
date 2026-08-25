@@ -53,6 +53,15 @@ export default function BuilderPage() {
   const [editingFile, setEditingFile] =
     useState(false);
 
+  const [previewHtml, setPreviewHtml] =
+    useState("");
+
+  const [previewLoading, setPreviewLoading] =
+    useState(false);
+
+  const [previewError, setPreviewError] =
+    useState("");
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -115,6 +124,8 @@ export default function BuilderPage() {
     setError("");
     setProject(null);
     setSelectedPath("");
+    setPreviewHtml("");
+    setPreviewError("");
 
     try {
       const response = await fetch(
@@ -256,6 +267,56 @@ export default function BuilderPage() {
     }
   }
 
+  async function generatePreview() {
+    if (!project?.id) {
+      setPreviewError(
+        "Le projet doit être sauvegardé avant de générer l'aperçu."
+      );
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-preview",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId: project.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de générer l'aperçu."
+        );
+      }
+
+      setPreviewHtml(
+        String(data.html || "")
+      );
+    } catch (error) {
+      setPreviewError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue pendant l'aperçu."
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   function downloadProjectZip() {
     if (!project?.id) {
       setError(
@@ -321,6 +382,8 @@ export default function BuilderPage() {
       files[0]?.path || ""
     );
 
+    setPreviewHtml("");
+    setPreviewError("");
     setError("");
   }
 
@@ -500,13 +563,26 @@ export default function BuilderPage() {
                   )}
 
                   {project.id && (
-                    <button
-                      type="button"
-                      onClick={downloadProjectZip}
-                      className="mt-5 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-400"
-                    >
-                      Télécharger le projet ZIP
-                    </button>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={generatePreview}
+                        disabled={previewLoading}
+                        className="rounded-2xl bg-fuchsia-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {previewLoading
+                          ? "Création de l'aperçu..."
+                          : "Aperçu live"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={downloadProjectZip}
+                        className="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-400"
+                      >
+                        Télécharger le projet ZIP
+                      </button>
+                    </div>
                   )}
 
                   {project.stack &&
@@ -526,6 +602,44 @@ export default function BuilderPage() {
                       </div>
                     )}
                 </div>
+
+                {previewError && (
+                  <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
+                    {previewError}
+                  </div>
+                )}
+
+                {previewHtml && (
+                  <div className="mt-6 overflow-hidden rounded-3xl border border-fuchsia-400/20 bg-black">
+                    <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">
+                          Live Preview
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          Aperçu isolé du projet généré
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={generatePreview}
+                        disabled={previewLoading}
+                        className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold text-slate-200 transition hover:bg-white/[0.09] disabled:opacity-50"
+                      >
+                        Actualiser
+                      </button>
+                    </div>
+
+                    <iframe
+                      title={`Aperçu ${project.name}`}
+                      srcDoc={previewHtml}
+                      sandbox="allow-scripts"
+                      className="h-[760px] w-full bg-white"
+                    />
+                  </div>
+                )}
 
                 <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                   <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
