@@ -1,12 +1,12 @@
 import {
+  mkdir,
   mkdtemp,
   rm,
   writeFile,
-  mkdir,
 } from "fs/promises";
+import { execFile } from "child_process";
 import os from "os";
 import path from "path";
-import { spawn } from "child_process";
 
 export type BuildRunnerFile = {
   path: string;
@@ -33,7 +33,12 @@ function safePath(
   const resolved =
     path.resolve(root, clean);
 
-  if (!resolved.startsWith(root)) {
+  if (
+    resolved !== root &&
+    !resolved.startsWith(
+      root + path.sep
+    )
+  ) {
     throw new Error(
       `Chemin de fichier interdit : ${relative}`
     );
@@ -48,87 +53,66 @@ async function runCommand(
   cwd: string,
   timeoutMs: number
 ) {
+  const env: NodeJS.ProcessEnv = {
+    PATH: process.env.PATH || "",
+    HOME: process.env.HOME || "",
+    TMPDIR: process.env.TMPDIR || "/tmp",
+    NODE_ENV: "production",
+    NEXT_TELEMETRY_DISABLED: "1",
+    CI: "1",
+  };
+
   return new Promise<{
     code: number | null;
     stdout: string;
     stderr: string;
-  }>((resolve, reject) => {
-    const child = spawn(
+  }>((resolve) => {
+    execFile(
       command,
       args,
       {
         cwd,
-        env: {
-          PATH:
-            process.env.PATH || "",
-          HOME:
-            process.env.HOME || "",
-          NEXT_TELEMETRY_DISABLED:
-            "1",
-          CI:
-            "1",
-        },
-        shell: false,
-      }
-    );
+        env,
+        timeout: timeoutMs,
+        maxBuffer:
+          10 * 1024 * 1024,
+        encoding: "utf8",
+      },
+      (
+        error,
+        stdout,
+        stderr
+      ) => {
+        const rawCode =
+          error
+            ? (
+                error as Error & {
+                  code?:
+                    | number
+                    | string
+                    | null;
+                }
+              ).code
+            : 0;
 
-    let stdout = "";
-    let stderr = "";
-
-    const timer =
-      setTimeout(() => {
-        child.kill("SIGKILL");
-      }, timeoutMs);
-
-    child.stdout.on(
-      "data",
-      (data) => {
-        stdout +=
-          data.toString();
-
-        if (
-          stdout.length >
-          100000
-        ) {
-          stdout =
-            stdout.slice(-100000);
-        }
-      }
-    );
-
-    child.stderr.on(
-      "data",
-      (data) => {
-        stderr +=
-          data.toString();
-
-        if (
-          stderr.length >
-          100000
-        ) {
-          stderr =
-            stderr.slice(-100000);
-        }
-      }
-    );
-
-    child.on(
-      "error",
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      }
-    );
-
-    child.on(
-      "close",
-      (code) => {
-        clearTimeout(timer);
+        const code =
+          typeof rawCode ===
+          "number"
+            ? rawCode
+            : error
+              ? 1
+              : 0;
 
         resolve({
           code,
-          stdout,
-          stderr,
+          stdout:
+            String(
+              stdout || ""
+            ).slice(-100000),
+          stderr:
+            String(
+              stderr || ""
+            ).slice(-100000),
         });
       }
     );
@@ -177,12 +161,6 @@ export async function runBuilderBuild(
         "utf8"
       );
     }
-
-    const packageJsonPath =
-      path.join(
-        tempRoot,
-        "package.json"
-      );
 
     const install =
       await runCommand(

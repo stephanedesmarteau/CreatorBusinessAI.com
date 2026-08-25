@@ -57,6 +57,14 @@ type RealBuildReport = {
   stderr: string;
 };
 
+type RuntimeStatus = {
+  running: boolean;
+  projectId: string;
+  port?: number;
+  url?: string;
+  startedAt?: string;
+};
+
 export default function BuilderPage() {
   const [prompt, setPrompt] = useState("");
   const [project, setProject] =
@@ -149,6 +157,15 @@ export default function BuilderPage() {
   const [repairingBuild, setRepairingBuild] =
     useState(false);
 
+  const [runtimeStatus, setRuntimeStatus] =
+    useState<RuntimeStatus | null>(null);
+
+  const [startingRuntime, setStartingRuntime] =
+    useState(false);
+
+  const [stoppingRuntime, setStoppingRuntime] =
+    useState(false);
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -161,6 +178,152 @@ export default function BuilderPage() {
       ) || null
     );
   }, [project, selectedPath]);
+
+  async function loadRuntimeStatus(
+    projectId?: string
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    if (!id) {
+      setRuntimeStatus(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/builder-runtime?projectId=${encodeURIComponent(
+          id
+        )}`
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        return;
+      }
+
+      setRuntimeStatus(
+        data.runtime || null
+      );
+    } catch (error) {
+      console.warn(
+        "Runtime status indisponible:",
+        error
+      );
+    }
+  }
+
+  async function startRealRuntime() {
+    if (!project?.id) {
+      return;
+    }
+
+    setStartingRuntime(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-runtime",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de démarrer l'application réelle."
+        );
+      }
+
+      setRuntimeStatus(
+        data.runtime || null
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de démarrer l'application réelle."
+      );
+    } finally {
+      setStartingRuntime(false);
+    }
+  }
+
+  async function stopRealRuntime() {
+    if (!project?.id) {
+      return;
+    }
+
+    setStoppingRuntime(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/builder-runtime?projectId=${encodeURIComponent(
+          project.id
+        )}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible d'arrêter l'application."
+        );
+      }
+
+      setRuntimeStatus(
+        data.runtime || {
+          running: false,
+          projectId:
+            project.id,
+        }
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'arrêter l'application."
+      );
+    } finally {
+      setStoppingRuntime(false);
+    }
+  }
+
+  function openRealRuntime() {
+    if (
+      !runtimeStatus?.running ||
+      !runtimeStatus.url
+    ) {
+      return;
+    }
+
+    window.open(
+      runtimeStatus.url,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
 
   async function runRealBuild() {
     if (!project?.id) {
@@ -827,6 +990,7 @@ ${issueText}
     setPreviewError("");
     setValidationReport(null);
     setRealBuildReport(null);
+    setRuntimeStatus(null);
 
     try {
       const response = await fetch(
@@ -1072,6 +1236,7 @@ ${issueText}
       setPreviewError("");
       setValidationReport(null);
       setRealBuildReport(null);
+      setRuntimeStatus(null);
 
       if (
         nextFiles.length &&
@@ -1278,6 +1443,10 @@ ${issueText}
     setError("");
 
     void loadVersions(
+      saved.id
+    );
+
+    void loadRuntimeStatus(
       saved.id
     );
   }
@@ -1868,6 +2037,101 @@ ${issueText}
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {project.id && (
+                    <div className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
+                            Application réelle
+                          </p>
+
+                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Démarre le vrai projet Next.js compilé sur un port local temporaire.
+                          </p>
+                        </div>
+
+                        <div
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                            runtimeStatus?.running
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-white/5 text-slate-400"
+                          }`}
+                        >
+                          {runtimeStatus?.running
+                            ? "EN LIGNE"
+                            : "ARRÊTÉ"}
+                        </div>
+                      </div>
+
+                      {runtimeStatus?.running &&
+                        runtimeStatus.url && (
+                          <div className="mt-4 rounded-xl border border-emerald-400/20 bg-black/20 p-4">
+                            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                              URL locale
+                            </p>
+
+                            <p className="mt-2 break-all font-mono text-sm text-white">
+                              {runtimeStatus.url}
+                            </p>
+
+                            {runtimeStatus.port && (
+                              <p className="mt-2 text-xs text-slate-400">
+                                Port {runtimeStatus.port}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {!runtimeStatus?.running && (
+                          <button
+                            type="button"
+                            onClick={startRealRuntime}
+                            disabled={
+                              startingRuntime ||
+                              realBuildReport?.success !== true
+                            }
+                            className="rounded-xl bg-blue-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {startingRuntime
+                              ? "Démarrage de l'application..."
+                              : "Démarrer l'application réelle"}
+                          </button>
+                        )}
+
+                        {runtimeStatus?.running && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={openRealRuntime}
+                              className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-400"
+                            >
+                              Ouvrir l'application
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={stopRealRuntime}
+                              disabled={stoppingRuntime}
+                              className="rounded-xl border border-red-400/30 bg-red-500/10 px-5 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {stoppingRuntime
+                                ? "Arrêt..."
+                                : "Arrêter l'application"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {realBuildReport?.success !== true &&
+                        !runtimeStatus?.running && (
+                          <p className="mt-3 text-xs text-slate-400">
+                            Compile d'abord le projet avec succès avant de démarrer l'application réelle.
+                          </p>
+                        )}
                     </div>
                   )}
 
