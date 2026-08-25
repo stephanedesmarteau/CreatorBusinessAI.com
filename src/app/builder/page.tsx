@@ -27,6 +27,13 @@ type SavedProject = {
   }>;
 };
 
+type ProjectVersion = {
+  id: string;
+  label?: string | null;
+  description?: string | null;
+  createdAt: string;
+};
+
 export default function BuilderPage() {
   const [prompt, setPrompt] = useState("");
   const [project, setProject] =
@@ -89,6 +96,18 @@ export default function BuilderPage() {
   const [changedFiles, setChangedFiles] =
     useState<string[]>([]);
 
+  const [versions, setVersions] =
+    useState<ProjectVersion[]>([]);
+
+  const [loadingVersions, setLoadingVersions] =
+    useState(false);
+
+  const [creatingVersion, setCreatingVersion] =
+    useState(false);
+
+  const [restoringVersionId, setRestoringVersionId] =
+    useState("");
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -101,6 +120,209 @@ export default function BuilderPage() {
       ) || null
     );
   }, [project, selectedPath]);
+
+  async function loadVersions(
+    projectId?: string
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    if (!id) {
+      setVersions([]);
+      return;
+    }
+
+    setLoadingVersions(true);
+
+    try {
+      const response = await fetch(
+        `/api/builder-versions?projectId=${encodeURIComponent(
+          id
+        )}`
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de charger l'historique."
+        );
+      }
+
+      setVersions(
+        Array.isArray(data.versions)
+          ? data.versions
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Erreur historique versions:",
+        error
+      );
+    } finally {
+      setLoadingVersions(false);
+    }
+  }
+
+  async function createManualVersion() {
+    if (!project?.id) {
+      return;
+    }
+
+    setCreatingVersion(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-versions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+            label:
+              "Point de sauvegarde manuel",
+            description:
+              "Version créée manuellement depuis le Builder.",
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de créer la version."
+        );
+      }
+
+      await loadVersions(
+        project.id
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de créer le point de sauvegarde."
+      );
+    } finally {
+      setCreatingVersion(false);
+    }
+  }
+
+  async function restoreVersion(
+    versionId: string
+  ) {
+    if (
+      !project?.id ||
+      !versionId
+    ) {
+      return;
+    }
+
+    setRestoringVersionId(
+      versionId
+    );
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-versions",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+            versionId,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de restaurer cette version."
+        );
+      }
+
+      const nextFiles =
+        Array.isArray(data.files)
+          ? data.files.map(
+              (file: any) => ({
+                path: String(
+                  file.path || ""
+                ),
+                content: String(
+                  file.content || ""
+                ),
+              })
+            )
+          : [];
+
+      setProject((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          files:
+            nextFiles,
+        };
+      });
+
+      if (
+        nextFiles.length &&
+        !nextFiles.some(
+          (file: BuilderFile) =>
+            file.path === selectedPath
+        )
+      ) {
+        setSelectedPath(
+          nextFiles[0].path
+        );
+      }
+
+      setPreviewHtml("");
+      setPreviewPages([]);
+      setPreviewRoute("/");
+      setPreviewError("");
+      setProjectEditSummary("");
+      setProjectEditPlan([]);
+      setChangedFiles([]);
+
+      await loadSavedProjects();
+      await loadVersions(
+        project.id
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de restaurer cette version."
+      );
+    } finally {
+      setRestoringVersionId(
+        ""
+      );
+    }
+  }
 
   async function loadSavedProjects() {
     setLoadingProjects(true);
@@ -195,6 +417,12 @@ export default function BuilderPage() {
       }
 
       await loadSavedProjects();
+
+      if (nextProject?.id) {
+        await loadVersions(
+          nextProject.id
+        );
+      }
     } catch (error) {
       setError(
         error instanceof Error
@@ -404,6 +632,9 @@ export default function BuilderPage() {
       }
 
       await loadSavedProjects();
+      await loadVersions(
+        project.id
+      );
     } catch (error) {
       setError(
         error instanceof Error
@@ -589,6 +820,10 @@ export default function BuilderPage() {
     setPreviewRoute("/");
     setPreviewError("");
     setError("");
+
+    void loadVersions(
+      saved.id
+    );
   }
 
   return (
@@ -841,6 +1076,97 @@ export default function BuilderPage() {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {project.id && (
+                    <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
+                            Historique des versions
+                          </p>
+
+                          <p className="mt-2 text-sm text-slate-300">
+                            Crée un point de sauvegarde ou restaure une ancienne version du projet.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={createManualVersion}
+                          disabled={creatingVersion}
+                          className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {creatingVersion
+                            ? "Sauvegarde..."
+                            : "Créer un point de sauvegarde"}
+                        </button>
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        {loadingVersions && (
+                          <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-400">
+                            Chargement de l'historique...
+                          </div>
+                        )}
+
+                        {!loadingVersions &&
+                          versions.length === 0 && (
+                            <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-3 text-sm text-slate-500">
+                              Aucune version enregistrée pour l'instant.
+                            </div>
+                          )}
+
+                        {versions.map(
+                          (version) => (
+                            <div
+                              key={version.id}
+                              className="rounded-xl border border-white/10 bg-black/20 p-4"
+                            >
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-bold text-white">
+                                    {version.label ||
+                                      "Version du projet"}
+                                  </p>
+
+                                  {version.description && (
+                                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                                      {version.description}
+                                    </p>
+                                  )}
+
+                                  <p className="mt-2 text-xs text-amber-200">
+                                    {new Date(
+                                      version.createdAt
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    restoreVersion(
+                                      version.id
+                                    )
+                                  }
+                                  disabled={
+                                    restoringVersionId ===
+                                    version.id
+                                  }
+                                  className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {restoringVersionId ===
+                                  version.id
+                                    ? "Restauration..."
+                                    : "Restaurer"}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
                     </div>
                   )}
 

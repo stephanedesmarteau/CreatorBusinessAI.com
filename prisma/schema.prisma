@@ -73,6 +73,7 @@ model Project {
   memories      Memory[]
   files         FileAsset[]
   agentRuns     AgentRun[]
+  versions      ProjectVersion[]
 
   @@index([workspaceId])
   @@index([status])
@@ -177,5 +178,19 @@ model AgentRun {
   @@index([projectId])
   @@index([agent])
   @@index([status])
+  @@index([createdAt])
+}
+
+model ProjectVersion {
+  id          String   @id @default(cuid())
+  projectId   String
+  label       String?
+  description String?
+  files       Json
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
   @@index([createdAt])
 }

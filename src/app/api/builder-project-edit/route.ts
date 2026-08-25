@@ -119,6 +119,17 @@ export async function PATCH(
 
     await prisma.$transaction(
       async (tx) => {
+        await tx.projectVersion.create({
+          data: {
+            projectId: project.id,
+            label: "Avant modification IA",
+            description:
+              result.summary ||
+              instruction,
+            files: currentFiles,
+          },
+        });
+
         for (
           const changedFile
           of result.files
