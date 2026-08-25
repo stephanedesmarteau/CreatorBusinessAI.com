@@ -49,6 +49,14 @@ type ValidationReport = {
   issues: ValidationIssue[];
 };
 
+type RealBuildReport = {
+  success: boolean;
+  exitCode: number | null;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+};
+
 export default function BuilderPage() {
   const [prompt, setPrompt] = useState("");
   const [project, setProject] =
@@ -132,6 +140,15 @@ export default function BuilderPage() {
   const [repairingProject, setRepairingProject] =
     useState(false);
 
+  const [realBuildReport, setRealBuildReport] =
+    useState<RealBuildReport | null>(null);
+
+  const [buildingProject, setBuildingProject] =
+    useState(false);
+
+  const [repairingBuild, setRepairingBuild] =
+    useState(false);
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -144,6 +161,216 @@ export default function BuilderPage() {
       ) || null
     );
   }, [project, selectedPath]);
+
+  async function runRealBuild() {
+    if (!project?.id) {
+      return null;
+    }
+
+    setBuildingProject(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-build",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de compiler réellement le projet."
+        );
+      }
+
+      const report =
+        data.build as RealBuildReport;
+
+      setRealBuildReport(
+        report
+      );
+
+      return report;
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de compiler réellement le projet."
+      );
+
+      return null;
+    } finally {
+      setBuildingProject(false);
+    }
+  }
+
+  async function repairRealBuild() {
+    if (
+      !project?.id ||
+      !realBuildReport ||
+      realBuildReport.success
+    ) {
+      return;
+    }
+
+    setRepairingBuild(true);
+    setError("");
+
+    try {
+      const buildLogs = `
+STDOUT
+
+${realBuildReport.stdout}
+
+STDERR
+
+${realBuildReport.stderr}
+      `.trim();
+
+      const instruction = `
+Le vrai build npm / Next.js de ce projet a échoué.
+
+Analyse les erreurs réelles ci-dessous et répare le projet.
+
+RÈGLES :
+- corrige uniquement les causes du build échoué ;
+- conserve le design et les fonctionnalités existantes ;
+- conserve l'architecture autant que possible ;
+- corrige les erreurs TypeScript ;
+- corrige les imports et exports cassés ;
+- corrige les dépendances manquantes dans package.json ;
+- corrige les incompatibilités Next.js / React / Tailwind ;
+- crée un fichier seulement si réellement nécessaire ;
+- ne supprime pas une fonctionnalité pour masquer une erreur ;
+- n'ajoute aucune dépendance inutile.
+
+LOGS DU BUILD RÉEL
+
+${buildLogs}
+      `.trim();
+
+      const response = await fetch(
+        "/api/builder-project-edit",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+            instruction,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de réparer les erreurs de compilation."
+        );
+      }
+
+      const nextFiles =
+        Array.isArray(data.files)
+          ? data.files.map(
+              (file: any) => ({
+                path: String(
+                  file.path || ""
+                ),
+                content: String(
+                  file.content || ""
+                ),
+              })
+            )
+          : [];
+
+      setProject((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          files:
+            nextFiles,
+        };
+      });
+
+      setProjectEditSummary(
+        String(
+          data.summary ||
+            "Réparation du build terminée."
+        )
+      );
+
+      setProjectEditPlan(
+        Array.isArray(data.plan)
+          ? data.plan.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setChangedFiles(
+        Array.isArray(
+          data.changedFiles
+        )
+          ? data.changedFiles.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setPreviewHtml("");
+      setPreviewPages([]);
+      setPreviewRoute("/");
+      setPreviewError("");
+      setValidationReport(null);
+
+      await loadSavedProjects();
+      await loadVersions(
+        project.id
+      );
+
+      const validation =
+        await validateProject();
+
+      if (
+        validation &&
+        validation.valid
+      ) {
+        await runRealBuild();
+      }
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de réparer le build."
+      );
+    } finally {
+      setRepairingBuild(false);
+    }
+  }
 
   async function validateProject() {
     if (!project?.id) {
@@ -599,6 +826,7 @@ ${issueText}
     setPreviewRoute("/");
     setPreviewError("");
     setValidationReport(null);
+    setRealBuildReport(null);
 
     try {
       const response = await fetch(
@@ -843,6 +1071,7 @@ ${issueText}
       setPreviewRoute("/");
       setPreviewError("");
       setValidationReport(null);
+      setRealBuildReport(null);
 
       if (
         nextFiles.length &&
@@ -1045,6 +1274,7 @@ ${issueText}
     setPreviewRoute("/");
     setPreviewError("");
     setValidationReport(null);
+    setRealBuildReport(null);
     setError("");
 
     void loadVersions(
@@ -1510,6 +1740,130 @@ ${issueText}
                               {repairingProject
                                 ? "Réparation automatique..."
                                 : "Réparer automatiquement avec l'IA"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {project.id && (
+                    <div className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-violet-300">
+                            Compilation réelle
+                          </p>
+
+                          <p className="mt-2 text-sm text-slate-300">
+                            Installe les dépendances dans un dossier temporaire et lance le vrai build Next.js du projet.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={runRealBuild}
+                          disabled={buildingProject}
+                          className="rounded-xl bg-violet-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {buildingProject
+                            ? "Compilation..."
+                            : "Compiler réellement"}
+                        </button>
+                      </div>
+
+                      {realBuildReport && (
+                        <div className="mt-4">
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Statut
+                              </p>
+
+                              <p
+                                className={`mt-2 text-sm font-bold ${
+                                  realBuildReport.success
+                                    ? "text-emerald-300"
+                                    : "text-red-300"
+                                }`}
+                              >
+                                {realBuildReport.success
+                                  ? "Build réussi"
+                                  : "Build échoué"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Code de sortie
+                              </p>
+
+                              <p className="mt-2 text-2xl font-black text-white">
+                                {realBuildReport.exitCode ??
+                                  "—"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Durée
+                              </p>
+
+                              <p className="mt-2 text-2xl font-black text-white">
+                                {Math.round(
+                                  realBuildReport.durationMs /
+                                    1000
+                                )}
+                                s
+                              </p>
+                            </div>
+                          </div>
+
+                          {(realBuildReport.stdout ||
+                            realBuildReport.stderr) && (
+                            <details className="mt-4 rounded-xl border border-white/10 bg-black/30">
+                              <summary className="cursor-pointer p-4 text-sm font-bold text-slate-200">
+                                Voir les logs du build
+                              </summary>
+
+                              <div className="border-t border-white/10 p-4">
+                                {realBuildReport.stdout && (
+                                  <>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                                      STDOUT
+                                    </p>
+
+                                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                                      {realBuildReport.stdout}
+                                    </pre>
+                                  </>
+                                )}
+
+                                {realBuildReport.stderr && (
+                                  <>
+                                    <p className="mt-4 text-xs font-bold uppercase tracking-widest text-red-300">
+                                      STDERR
+                                    </p>
+
+                                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-5 text-red-200">
+                                      {realBuildReport.stderr}
+                                    </pre>
+                                  </>
+                                )}
+                              </div>
+                            </details>
+                          )}
+
+                          {!realBuildReport.success && (
+                            <button
+                              type="button"
+                              onClick={repairRealBuild}
+                              disabled={repairingBuild}
+                              className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {repairingBuild
+                                ? "Réparation du build..."
+                                : "Réparer les erreurs de build avec l'IA"}
                             </button>
                           )}
                         </div>
