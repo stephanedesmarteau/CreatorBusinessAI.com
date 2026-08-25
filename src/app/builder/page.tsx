@@ -34,6 +34,21 @@ type ProjectVersion = {
   createdAt: string;
 };
 
+type ValidationIssue = {
+  severity: "error" | "warning";
+  code: string;
+  file?: string;
+  message: string;
+};
+
+type ValidationReport = {
+  valid: boolean;
+  score: number;
+  errors: number;
+  warnings: number;
+  issues: ValidationIssue[];
+};
+
 export default function BuilderPage() {
   const [prompt, setPrompt] = useState("");
   const [project, setProject] =
@@ -108,6 +123,15 @@ export default function BuilderPage() {
   const [restoringVersionId, setRestoringVersionId] =
     useState("");
 
+  const [validationReport, setValidationReport] =
+    useState<ValidationReport | null>(null);
+
+  const [validatingProject, setValidatingProject] =
+    useState(false);
+
+  const [repairingProject, setRepairingProject] =
+    useState(false);
+
   const selectedFile = useMemo(() => {
     if (!project || !selectedPath) {
       return null;
@@ -120,6 +144,203 @@ export default function BuilderPage() {
       ) || null
     );
   }, [project, selectedPath]);
+
+  async function validateProject() {
+    if (!project?.id) {
+      return null;
+    }
+
+    setValidatingProject(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "/api/builder-validate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible d'analyser le projet."
+        );
+      }
+
+      const report =
+        data.report as ValidationReport;
+
+      setValidationReport(
+        report
+      );
+
+      return report;
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'analyser le projet."
+      );
+
+      return null;
+    } finally {
+      setValidatingProject(false);
+    }
+  }
+
+  async function repairValidationIssues() {
+    if (
+      !project?.id ||
+      !validationReport ||
+      validationReport.valid
+    ) {
+      return;
+    }
+
+    setRepairingProject(true);
+    setError("");
+
+    try {
+      const issueText =
+        validationReport.issues
+          .map(
+            (issue, index) =>
+              `${index + 1}. [${issue.severity.toUpperCase()}] ${issue.code}` +
+              `${issue.file ? ` — ${issue.file}` : ""}` +
+              ` — ${issue.message}`
+          )
+          .join("\\n");
+
+      const instruction = `
+Répare automatiquement les problèmes détectés dans ce projet.
+
+RÈGLES :
+- corrige uniquement les problèmes nécessaires ;
+- conserve le design et les fonctionnalités actuelles ;
+- conserve l'architecture existante autant que possible ;
+- corrige les imports cassés ;
+- crée les fichiers manquants si nécessaire ;
+- corrige package.json ou les fichiers JSON invalides ;
+- corrige les problèmes structurels TypeScript / TSX évidents ;
+- n'ajoute aucune dépendance inutile ;
+- ne supprime aucune fonctionnalité fonctionnelle.
+
+RAPPORT DE VALIDATION
+
+${issueText}
+      `.trim();
+
+      const response = await fetch(
+        "/api/builder-project-edit",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              project.id,
+            instruction,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de réparer le projet."
+        );
+      }
+
+      const nextFiles =
+        Array.isArray(data.files)
+          ? data.files.map(
+              (file: any) => ({
+                path: String(
+                  file.path || ""
+                ),
+                content: String(
+                  file.content || ""
+                ),
+              })
+            )
+          : [];
+
+      setProject((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          files: nextFiles,
+        };
+      });
+
+      setProjectEditSummary(
+        String(
+          data.summary ||
+            "Réparation automatique terminée."
+        )
+      );
+
+      setProjectEditPlan(
+        Array.isArray(data.plan)
+          ? data.plan.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setChangedFiles(
+        Array.isArray(
+          data.changedFiles
+        )
+          ? data.changedFiles.map(
+              (item: unknown) =>
+                String(item)
+            )
+          : []
+      );
+
+      setPreviewHtml("");
+      setPreviewPages([]);
+      setPreviewRoute("/");
+      setPreviewError("");
+
+      await loadSavedProjects();
+      await loadVersions(
+        project.id
+      );
+
+      await validateProject();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de réparer automatiquement le projet."
+      );
+    } finally {
+      setRepairingProject(false);
+    }
+  }
 
   async function loadVersions(
     projectId?: string
@@ -377,6 +598,7 @@ export default function BuilderPage() {
     setPreviewPages([]);
     setPreviewRoute("/");
     setPreviewError("");
+    setValidationReport(null);
 
     try {
       const response = await fetch(
@@ -617,7 +839,10 @@ export default function BuilderPage() {
 
       setProjectInstruction("");
       setPreviewHtml("");
+      setPreviewPages([]);
+      setPreviewRoute("/");
       setPreviewError("");
+      setValidationReport(null);
 
       if (
         nextFiles.length &&
@@ -819,6 +1044,7 @@ export default function BuilderPage() {
     setPreviewPages([]);
     setPreviewRoute("/");
     setPreviewError("");
+    setValidationReport(null);
     setError("");
 
     void loadVersions(
@@ -1167,6 +1393,127 @@ export default function BuilderPage() {
                           )
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {project.id && (
+                    <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+                            Validation du projet
+                          </p>
+
+                          <p className="mt-2 text-sm text-slate-300">
+                            Analyse la structure, les imports et les fichiers du projet avant export ou déploiement.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={validateProject}
+                          disabled={validatingProject}
+                          className="rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {validatingProject
+                            ? "Analyse..."
+                            : "Analyser le projet"}
+                        </button>
+                      </div>
+
+                      {validationReport && (
+                        <div className="mt-4">
+                          <div className="grid gap-3 sm:grid-cols-4">
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Score
+                              </p>
+                              <p className="mt-2 text-2xl font-black text-white">
+                                {validationReport.score}/100
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Statut
+                              </p>
+                              <p
+                                className={`mt-2 text-sm font-bold ${
+                                  validationReport.valid
+                                    ? "text-emerald-300"
+                                    : "text-red-300"
+                                }`}
+                              >
+                                {validationReport.valid
+                                  ? "Projet valide"
+                                  : "Corrections requises"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Erreurs
+                              </p>
+                              <p className="mt-2 text-2xl font-black text-red-300">
+                                {validationReport.errors}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                              <p className="text-xs uppercase tracking-widest text-slate-500">
+                                Avertissements
+                              </p>
+                              <p className="mt-2 text-2xl font-black text-amber-300">
+                                {validationReport.warnings}
+                              </p>
+                            </div>
+                          </div>
+
+                          {validationReport.issues.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              {validationReport.issues.map(
+                                (issue, index) => (
+                                  <div
+                                    key={`${issue.code}-${issue.file || "global"}-${index}`}
+                                    className={`rounded-xl border p-3 text-sm ${
+                                      issue.severity === "error"
+                                        ? "border-red-400/20 bg-red-500/10 text-red-200"
+                                        : "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                                    }`}
+                                  >
+                                    <p className="font-bold">
+                                      {issue.code}
+                                    </p>
+
+                                    {issue.file && (
+                                      <p className="mt-1 break-all text-xs opacity-80">
+                                        {issue.file}
+                                      </p>
+                                    )}
+
+                                    <p className="mt-2 text-xs leading-5">
+                                      {issue.message}
+                                    </p>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+
+                          {!validationReport.valid && (
+                            <button
+                              type="button"
+                              onClick={repairValidationIssues}
+                              disabled={repairingProject}
+                              className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {repairingProject
+                                ? "Réparation automatique..."
+                                : "Réparer automatiquement avec l'IA"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
