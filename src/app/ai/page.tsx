@@ -529,6 +529,91 @@ Important :
     );
   }
 
+  async function updateIntelligentMemory(
+    text: string
+  ) {
+    if (!text.trim()) {
+      return "";
+    }
+
+    try {
+      const response = await fetch(
+        "/api/memory-engine",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            message: text,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        console.warn(
+          "Memory Engine indisponible:",
+          data.error
+        );
+
+        return "";
+      }
+
+      return String(
+        data.context || ""
+      );
+    } catch (error) {
+      console.warn(
+        "Memory Engine indisponible:",
+        error
+      );
+
+      return "";
+    }
+  }
+
+  async function loadIntelligentMemory() {
+    try {
+      const response = await fetch(
+        "/api/memory-engine"
+      );
+
+      const data =
+        await response.json();
+
+      if (
+        !response.ok ||
+        !Array.isArray(
+          data.memories
+        )
+      ) {
+        return "";
+      }
+
+      return data.memories
+        .slice(0, 20)
+        .map(
+          (memory: any) =>
+            `[${memory.type}] ${
+              memory.key ||
+              "memory"
+            }: ${memory.content}`
+        )
+        .join("\\n");
+    } catch (error) {
+      console.warn(
+        "Chargement mémoire intelligente indisponible:",
+        error
+      );
+
+      return "";
+    }
+  }
+
   async function routeRequest() {
     if (!message.trim()) return;
 
@@ -550,26 +635,40 @@ Important :
           activeConversationId
         );
 
+      const durableMemory =
+        await loadIntelligentMemory();
+
       await saveConversationMessage(
         activeConversationId,
         "USER",
         message
       );
 
-      const contextualMessage =
-        previousContext.trim()
-          ? `
-CONTEXTE DE CONVERSATION PERSISTANT
+      // Extraction mémoire en parallèle.
+      // Une erreur mémoire ne bloque jamais la réponse principale.
+      void updateIntelligentMemory(
+        message
+      );
 
-${previousContext}
+      const contextualMessage = `
+MÉMOIRE DURABLE CREATORBUSINESSAI
+
+${durableMemory || "Aucune mémoire durable pertinente."}
+
+HISTORIQUE RÉCENT DE LA CONVERSATION
+
+${previousContext || "Aucun historique récent."}
 
 NOUVELLE DEMANDE DE L'UTILISATEUR
 
 ${message}
 
-Réponds principalement à la nouvelle demande, en utilisant le contexte précédent seulement lorsqu'il est pertinent.
-            `.trim()
-          : message;
+Instructions :
+- réponds principalement à la nouvelle demande ;
+- utilise la mémoire durable seulement lorsqu'elle est pertinente ;
+- ne révèle pas inutilement le contenu interne de la mémoire ;
+- si une nouvelle information contredit une ancienne mémoire, privilégie la nouvelle information explicite de l'utilisateur.
+      `.trim();
 
       let response: Response;
 
