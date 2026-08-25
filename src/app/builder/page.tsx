@@ -1,0 +1,482 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type BuilderFile = {
+  path: string;
+  content: string;
+};
+
+type BuilderProject = {
+  id?: string;
+  name: string;
+  description?: string | null;
+  stack?: string[];
+  files: BuilderFile[];
+};
+
+type SavedProject = {
+  id: string;
+  name: string;
+  description?: string | null;
+  createdAt?: string;
+  files: Array<{
+    id: string;
+    path: string;
+    metadata?: any;
+  }>;
+};
+
+export default function BuilderPage() {
+  const [prompt, setPrompt] = useState("");
+  const [project, setProject] =
+    useState<BuilderProject | null>(null);
+
+  const [savedProjects, setSavedProjects] =
+    useState<SavedProject[]>([]);
+
+  const [selectedPath, setSelectedPath] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [loadingProjects, setLoadingProjects] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const selectedFile = useMemo(() => {
+    if (!project || !selectedPath) {
+      return null;
+    }
+
+    return (
+      project.files.find(
+        (file) =>
+          file.path === selectedPath
+      ) || null
+    );
+  }, [project, selectedPath]);
+
+  async function loadSavedProjects() {
+    setLoadingProjects(true);
+
+    try {
+      const response = await fetch(
+        "/api/builder-projects"
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de charger les projets."
+        );
+      }
+
+      setSavedProjects(
+        Array.isArray(data.projects)
+          ? data.projects
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Erreur chargement projets:",
+        error
+      );
+    } finally {
+      setLoadingProjects(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadSavedProjects();
+  }, []);
+
+  async function generateProject() {
+    const cleanPrompt =
+      prompt.trim();
+
+    if (!cleanPrompt) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setProject(null);
+    setSelectedPath("");
+
+    try {
+      const response = await fetch(
+        "/api/builder",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            prompt: cleanPrompt,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de générer le projet."
+        );
+      }
+
+      const nextProject =
+        data.project as BuilderProject;
+
+      setProject(nextProject);
+
+      if (
+        nextProject?.files?.length
+      ) {
+        setSelectedPath(
+          nextProject.files[0].path
+        );
+      }
+
+      await loadSavedProjects();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openSavedProject(
+    saved: SavedProject
+  ) {
+    const files: BuilderFile[] =
+      saved.files
+        .map((file) => {
+          const metadata =
+            file.metadata &&
+            typeof file.metadata === "object"
+              ? file.metadata
+              : {};
+
+          return {
+            path:
+              String(
+                metadata.path ??
+                  file.path ??
+                  ""
+              ),
+            content:
+              String(
+                metadata.content ?? ""
+              ),
+          };
+        })
+        .filter(
+          (file) =>
+            file.path &&
+            file.content
+        );
+
+    const loadedProject: BuilderProject = {
+      id: saved.id,
+      name: saved.name,
+      description:
+        saved.description || "",
+      stack:
+        Array.isArray(
+          saved.files?.[0]?.metadata?.stack
+        )
+          ? saved.files[0].metadata.stack
+          : [],
+      files,
+    };
+
+    setProject(loadedProject);
+
+    setSelectedPath(
+      files[0]?.path || ""
+    );
+
+    setError("");
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-300">
+                CreatorBusinessAI
+              </p>
+
+              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+                Website & App Builder
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                Décris le projet à construire.
+                CreatorBusinessAI génère une
+                structure multi-fichiers complète,
+                puis sauvegarde le projet dans
+                PostgreSQL.
+              </p>
+            </div>
+
+            <a
+              href="/ai"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-center text-sm font-bold text-slate-200 transition hover:bg-white/[0.09]"
+            >
+              Retour à AI Central
+            </a>
+          </div>
+
+          <div className="mt-8">
+            <label className="text-sm font-bold text-slate-200">
+              Décris ton projet
+            </label>
+
+            <textarea
+              value={prompt}
+              onChange={(e) =>
+                setPrompt(
+                  e.target.value
+                )
+              }
+              placeholder="Exemple : Crée un site SaaS premium pour une entreprise d'intelligence artificielle, avec landing page, tarifs, FAQ, tableau de bord et formulaire de contact."
+              className="mt-3 min-h-44 w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/60"
+            />
+
+            <button
+              type="button"
+              onClick={generateProject}
+              disabled={
+                loading ||
+                !prompt.trim()
+              }
+              className="mt-4 w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading
+                ? "Construction du projet..."
+                : "Construire le projet →"}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Projets sauvegardés
+                </p>
+
+                <p className="mt-2 text-sm text-slate-300">
+                  {savedProjects.length} projet(s)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadSavedProjects()
+                }
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.09]"
+              >
+                {loadingProjects
+                  ? "..."
+                  : "Actualiser"}
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {savedProjects.length === 0 &&
+                !loadingProjects && (
+                  <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-slate-500">
+                    Aucun projet généré pour
+                    l'instant.
+                  </div>
+                )}
+
+              {savedProjects.map(
+                (saved) => (
+                  <button
+                    key={saved.id}
+                    type="button"
+                    onClick={() =>
+                      openSavedProject(
+                        saved
+                      )
+                    }
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-left transition hover:border-blue-400/30 hover:bg-blue-500/5"
+                  >
+                    <p className="font-bold text-white">
+                      {saved.name}
+                    </p>
+
+                    {saved.description && (
+                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-400">
+                        {
+                          saved.description
+                        }
+                      </p>
+                    )}
+
+                    <p className="mt-3 text-xs text-blue-300">
+                      {
+                        saved.files
+                          .length
+                      }{" "}
+                      fichier(s)
+                    </p>
+                  </button>
+                )
+              )}
+            </div>
+          </aside>
+
+          <section className="min-w-0">
+            {!project && (
+              <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.025] p-10 text-center">
+                <p className="text-xl font-bold text-white">
+                  Aucun projet ouvert
+                </p>
+
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-400">
+                  Décris un projet ci-dessus ou
+                  ouvre un projet sauvegardé pour
+                  parcourir son code.
+                </p>
+              </div>
+            )}
+
+            {project && (
+              <>
+                <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-6">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                    Projet généré
+                  </p>
+
+                  <h2 className="mt-3 text-2xl font-black text-white">
+                    {project.name}
+                  </h2>
+
+                  {project.description && (
+                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                      {
+                        project.description
+                      }
+                    </p>
+                  )}
+
+                  {project.stack &&
+                    project.stack.length >
+                      0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {project.stack.map(
+                          (item) => (
+                            <span
+                              key={item}
+                              className="rounded-full border border-emerald-400/20 bg-black/20 px-3 py-1 text-xs font-bold text-emerald-200"
+                            >
+                              {item}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )}
+                </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="px-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                      Fichiers
+                    </p>
+
+                    <div className="mt-4 space-y-2">
+                      {project.files.map(
+                        (file) => (
+                          <button
+                            key={
+                              file.path
+                            }
+                            type="button"
+                            onClick={() =>
+                              setSelectedPath(
+                                file.path
+                              )
+                            }
+                            className={`w-full rounded-xl px-3 py-3 text-left text-xs font-semibold transition ${
+                              selectedPath ===
+                              file.path
+                                ? "bg-blue-500 text-white"
+                                : "bg-black/20 text-slate-300 hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            <span className="break-all">
+                              {file.path}
+                            </span>
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-black/30">
+                    <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                      <p className="break-all text-sm font-bold text-slate-200">
+                        {selectedFile?.path ||
+                          "Sélectionne un fichier"}
+                      </p>
+
+                      {selectedFile && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigator.clipboard.writeText(
+                              selectedFile.content
+                            )
+                          }
+                          className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.09]"
+                        >
+                          Copier
+                        </button>
+                      )}
+                    </div>
+
+                    <pre className="max-h-[700px] overflow-auto p-5 text-xs leading-6 text-slate-200">
+                      <code>
+                        {selectedFile?.content ||
+                          "Aucun contenu."}
+                      </code>
+                    </pre>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
