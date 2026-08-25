@@ -8,6 +8,17 @@ const client = new OpenAI({
 
 export const maxDuration = 300;
 
+type SourceFile = {
+  path: string;
+  content: string;
+};
+
+type PreviewPage = {
+  route: string;
+  title: string;
+  html: string;
+};
+
 function cleanHtml(text: string) {
   return text
     .trim()
@@ -17,9 +28,205 @@ function cleanHtml(text: string) {
     .trim();
 }
 
-export async function POST(request: Request) {
+function routeFromPagePath(path: string) {
+  const normalized =
+    path.replace(/\\/g, "/");
+
+  if (
+    normalized ===
+    "src/app/page.tsx"
+  ) {
+    return "/";
+  }
+
+  const prefix = "src/app/";
+  const suffix = "/page.tsx";
+
+  if (
+    normalized.startsWith(prefix) &&
+    normalized.endsWith(suffix)
+  ) {
+    const middle =
+      normalized.slice(
+        prefix.length,
+        -suffix.length
+      );
+
+    return `/${middle}`
+      .replace(/\/+/g, "/");
+  }
+
+  return null;
+}
+
+function pageTitle(route: string) {
+  if (route === "/") {
+    return "Accueil";
+  }
+
+  return route
+    .split("/")
+    .filter(Boolean)
+    .map(
+      (segment) =>
+        segment
+          .replace(/-/g, " ")
+          .replace(
+            /\b\w/g,
+            (char) =>
+              char.toUpperCase()
+          )
+    )
+    .join(" / ");
+}
+
+async function generatePagePreview(
+  projectName: string,
+  description: string,
+  route: string,
+  files: SourceFile[]
+): Promise<PreviewPage> {
+  let totalCharacters = 0;
+
+  const sourceParts: string[] = [];
+
+  for (const file of files) {
+    let content = file.content;
+
+    if (!content) {
+      continue;
+    }
+
+    const remaining =
+      70000 - totalCharacters;
+
+    if (remaining <= 0) {
+      break;
+    }
+
+    if (
+      content.length >
+      remaining
+    ) {
+      content =
+        content.slice(
+          0,
+          remaining
+        );
+    }
+
+    totalCharacters +=
+      content.length;
+
+    sourceParts.push(`
+===== ${file.path} =====
+
+${content}
+    `.trim());
+  }
+
+  const response =
+    await client.responses.create({
+      model: "gpt-5.6-terra",
+      reasoning: {
+        effort: "low",
+      },
+      input: [
+        {
+          role: "developer",
+          content: `
+Tu es le moteur Live Preview multi-pages de CreatorBusinessAI.
+
+Tu transformes une page React / Next.js / Tailwind
+en un document HTML autonome pour iframe sandbox.
+
+La route actuellement rendue est :
+
+${route}
+
+Règles :
+- reproduis fidèlement la page correspondant à cette route ;
+- conserve le design original ;
+- utilise les composants fournis ;
+- reproduis navigation, formulaires, hero, sections,
+  tarifs, FAQ, CTA et footer lorsque pertinents ;
+- rends l'interface responsive ;
+- convertis les classes Tailwind nécessaires en CSS autonome ;
+- conserve les interactions simples ;
+- aucune dépendance npm ;
+- aucun appel serveur réel ;
+- aucun secret ;
+- aucun iframe imbriqué ;
+- aucun localStorage ;
+- aucun accès parent/top ;
+- aucun script externe nécessaire ;
+- utilise HTML, CSS et JavaScript navigateur simples.
+
+NAVIGATION MULTI-PAGES :
+- conserve les liens internes utilisant des routes comme
+  "/", "/contact", "/pricing", etc. ;
+- ajoute l'attribut data-preview-route aux liens internes ;
+- exemple :
+  <a href="/contact" data-preview-route="/contact">Contact</a>
+- ne transforme pas /contact en #contact ;
+- les ancres de la page courante peuvent rester #section.
+
+Retourne uniquement le HTML complet.
+Commence par <!DOCTYPE html>.
+          `.trim(),
+        },
+        {
+          role: "user",
+          content: `
+PROJET
+${projectName}
+
+DESCRIPTION
+${description}
+
+ROUTE À AFFICHER
+${route}
+
+FICHIERS SOURCE
+
+${sourceParts.join("\n\n")}
+
+Crée l'aperçu HTML autonome de cette route.
+          `.trim(),
+        },
+      ],
+    });
+
+  const html =
+    cleanHtml(
+      response.output_text
+    );
+
+  if (
+    !html ||
+    !html
+      .toLowerCase()
+      .includes("<html")
+  ) {
+    throw new Error(
+      `Aperçu HTML invalide pour ${route}.`
+    );
+  }
+
+  return {
+    route,
+    title:
+      pageTitle(route),
+    html,
+  };
+}
+
+export async function POST(
+  request: Request
+) {
   try {
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const projectId = String(
       body.projectId ?? ""
@@ -62,156 +269,116 @@ export async function POST(request: Request) {
       );
     }
 
-    const usefulFiles =
+    const sourceFiles: SourceFile[] =
       project.files
-        .filter((file) => {
-          const name =
-            file.name.toLowerCase();
+        .map((file) => {
+          const metadata =
+            file.metadata &&
+            typeof file.metadata ===
+              "object"
+              ? (
+                  file.metadata as Record<
+                    string,
+                    unknown
+                  >
+                )
+              : {};
 
-          return (
-            name === "src/app/page.tsx" ||
-            name === "src/app/globals.css" ||
-            name === "src/app/layout.tsx" ||
-            name.startsWith(
-              "src/components/"
-            )
-          );
+          return {
+            path: file.name,
+            content: String(
+              metadata.content ?? ""
+            ),
+          };
         })
-        .slice(0, 20);
+        .filter(
+          (file) =>
+            file.path &&
+            file.content
+        );
 
-    let totalCharacters = 0;
-
-    const sourceParts: string[] = [];
-
-    for (const file of usefulFiles) {
-      const metadata =
-        file.metadata &&
-        typeof file.metadata === "object"
-          ? (file.metadata as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      let content = String(
-        metadata.content ?? ""
+    const pageFiles =
+      sourceFiles.filter(
+        (file) =>
+          routeFromPagePath(
+            file.path
+          ) !== null
       );
 
-      if (!content) {
-        continue;
-      }
-
-      const remaining =
-        70000 - totalCharacters;
-
-      if (remaining <= 0) {
-        break;
-      }
-
-      if (content.length > remaining) {
-        content =
-          content.slice(0, remaining);
-      }
-
-      totalCharacters += content.length;
-
-      sourceParts.push(`
-===== ${file.name} =====
-
-${content}
-      `.trim());
-    }
-
-    if (!sourceParts.length) {
+    if (!pageFiles.length) {
       return NextResponse.json(
         {
           error:
-            "Aucun fichier visuel utilisable pour l'aperçu.",
+            "Aucune page Next.js détectée.",
         },
         { status: 400 }
       );
     }
 
-    const response =
-      await client.responses.create({
-        model: "gpt-5.6-terra",
-        reasoning: {
-          effort: "low",
-        },
-        input: [
-          {
-            role: "developer",
-            content: `
-Tu es le moteur Live Preview de CreatorBusinessAI.
-
-Tu reçois les fichiers React / Next.js / Tailwind
-d'un projet généré.
-
-Ta mission :
-transformer fidèlement l'interface en UN SEUL
-document HTML autonome affichable dans un iframe.
-
-Règles :
-- conserve au maximum le design original ;
-- reproduis navigation, hero, fonctionnalités,
-  tarifs, FAQ, CTA et footer si présents ;
-- rends le résultat responsive ;
-- transforme les classes Tailwind nécessaires
-  en CSS autonome si nécessaire ;
-- conserve les interactions simples comme FAQ,
-  boutons et navigation interne ;
-- aucune dépendance npm ;
-- aucun appel serveur ;
-- aucun secret ;
-- aucun iframe imbriqué ;
-- aucun accès localStorage ;
-- aucun accès parent/top ;
-- aucun script externe nécessaire ;
-- utilise uniquement HTML, CSS et JavaScript
-  navigateur simples ;
-- retourne uniquement le HTML complet ;
-- commence par <!DOCTYPE html>.
-            `.trim(),
-          },
-          {
-            role: "user",
-            content: `
-PROJET
-${project.name}
-
-DESCRIPTION
-${project.description || ""}
-
-FICHIERS SOURCE
-
-${sourceParts.join("\n\n")}
-
-Crée maintenant l'aperçu HTML autonome.
-            `.trim(),
-          },
-        ],
-      });
-
-    const html =
-      cleanHtml(
-        response.output_text
+    const sharedFiles =
+      sourceFiles.filter(
+        (file) =>
+          file.path ===
+            "src/app/globals.css" ||
+          file.path ===
+            "src/app/layout.tsx" ||
+          file.path.startsWith(
+            "src/components/"
+          )
       );
 
-    if (
-      !html ||
-      !html
-        .toLowerCase()
-        .includes("<html")
+    const detectedRoutes =
+      pageFiles
+        .map((file) => ({
+          route:
+            routeFromPagePath(
+              file.path
+            )!,
+          file,
+        }))
+        .slice(0, 8);
+
+    const pages: PreviewPage[] =
+      [];
+
+    for (
+      const page
+      of detectedRoutes
     ) {
-      throw new Error(
-        "Le moteur Preview n'a pas retourné un document HTML valide."
-      );
+      const relevantFiles = [
+        ...sharedFiles,
+        page.file,
+      ];
+
+      const preview =
+        await generatePagePreview(
+          project.name,
+          project.description || "",
+          page.route,
+          relevantFiles
+        );
+
+      pages.push(preview);
     }
 
     return NextResponse.json({
       success: true,
       projectId,
-      html,
+      defaultRoute:
+        pages.some(
+          (page) =>
+            page.route === "/"
+        )
+          ? "/"
+          : pages[0].route,
+      routes:
+        pages.map(
+          (page) => ({
+            route: page.route,
+            title: page.title,
+          })
+        ),
+      pages,
     });
   } catch (error) {
     console.error(
@@ -224,7 +391,7 @@ Crée maintenant l'aperçu HTML autonome.
         error:
           error instanceof Error
             ? error.message
-            : "Impossible de générer l'aperçu.",
+            : "Impossible de générer l'aperçu multi-pages.",
       },
       { status: 500 }
     );

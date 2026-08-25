@@ -56,6 +56,18 @@ export default function BuilderPage() {
   const [previewHtml, setPreviewHtml] =
     useState("");
 
+  const [previewPages, setPreviewPages] =
+    useState<
+      Array<{
+        route: string;
+        title: string;
+        html: string;
+      }>
+    >([]);
+
+  const [previewRoute, setPreviewRoute] =
+    useState("/");
+
   const [previewLoading, setPreviewLoading] =
     useState(false);
 
@@ -140,6 +152,8 @@ export default function BuilderPage() {
     setProject(null);
     setSelectedPath("");
     setPreviewHtml("");
+    setPreviewPages([]);
+    setPreviewRoute("/");
     setPreviewError("");
 
     try {
@@ -437,8 +451,45 @@ export default function BuilderPage() {
         );
       }
 
+      const pages =
+        Array.isArray(data.pages)
+          ? data.pages.map(
+              (page: any) => ({
+                route: String(
+                  page.route || "/"
+                ),
+                title: String(
+                  page.title ||
+                    page.route ||
+                    "Page"
+                ),
+                html: String(
+                  page.html || ""
+                ),
+              })
+            )
+          : [];
+
+      const defaultRoute =
+        String(
+          data.defaultRoute ||
+            pages[0]?.route ||
+            "/"
+        );
+
+      setPreviewPages(pages);
+      setPreviewRoute(defaultRoute);
+
+      const active =
+        pages.find(
+          (page: any) =>
+            page.route === defaultRoute
+        );
+
       setPreviewHtml(
-        String(data.html || "")
+        String(
+          active?.html || ""
+        )
       );
     } catch (error) {
       setPreviewError(
@@ -449,6 +500,23 @@ export default function BuilderPage() {
     } finally {
       setPreviewLoading(false);
     }
+  }
+
+  function openPreviewRoute(
+    route: string
+  ) {
+    const page =
+      previewPages.find(
+        (item) =>
+          item.route === route
+      );
+
+    if (!page) {
+      return;
+    }
+
+    setPreviewRoute(route);
+    setPreviewHtml(page.html);
   }
 
   function downloadProjectZip() {
@@ -517,6 +585,8 @@ export default function BuilderPage() {
     );
 
     setPreviewHtml("");
+    setPreviewPages([]);
+    setPreviewRoute("/");
     setPreviewError("");
     setError("");
   }
@@ -823,25 +893,53 @@ export default function BuilderPage() {
 
                 {previewHtml && (
                   <div className="mt-6 overflow-hidden rounded-3xl border border-fuchsia-400/20 bg-black">
-                    <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-4">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">
-                          Live Preview
-                        </p>
+                    <div className="border-b border-white/10 bg-white/[0.04] px-5 py-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-300">
+                            Live Preview
+                          </p>
 
-                        <p className="mt-1 text-xs text-slate-400">
-                          Aperçu isolé du projet généré
-                        </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Aperçu multi-pages isolé du projet généré
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={generatePreview}
+                          disabled={previewLoading}
+                          className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold text-slate-200 transition hover:bg-white/[0.09] disabled:opacity-50"
+                        >
+                          Actualiser
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={generatePreview}
-                        disabled={previewLoading}
-                        className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold text-slate-200 transition hover:bg-white/[0.09] disabled:opacity-50"
-                      >
-                        Actualiser
-                      </button>
+                      {previewPages.length > 1 && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {previewPages.map(
+                            (page) => (
+                              <button
+                                key={page.route}
+                                type="button"
+                                onClick={() =>
+                                  openPreviewRoute(
+                                    page.route
+                                  )
+                                }
+                                className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+                                  previewRoute ===
+                                  page.route
+                                    ? "bg-fuchsia-500 text-white"
+                                    : "border border-white/10 bg-black/20 text-slate-300 hover:bg-white/[0.06]"
+                                }`}
+                              >
+                                {page.title}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <iframe
