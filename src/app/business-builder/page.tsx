@@ -2,6 +2,80 @@
 
 import { useState } from "react";
 
+
+function FormattedContent({
+  content,
+}: {
+  content: string;
+}) {
+  const normalized = content
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*/g, "")
+    .replace(/\\-/g, "-")
+    .replace(/\\(\d+)\./g, "$1.")
+    .replace(/\s+(?=\d+[.)]\s)/g, "\n")
+    .replace(/\s+-\s+(?=[A-ZÀ-ÖØ-ÞÉÈÊËÎÏÔÖÙÛÜÇ])/g, "\n- ")
+    .trim();
+
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-3">
+      {lines.map((line, index) => {
+        const bulletMatch =
+          line.match(/^[-•]\s*(.+)$/);
+
+        const numberedMatch =
+          line.match(/^(\d+)[.)]\s*(.+)$/);
+
+        if (numberedMatch) {
+          return (
+            <div
+              key={`${line}-${index}`}
+              className="flex gap-3"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-300">
+                {numberedMatch[1]}
+              </div>
+
+              <p className="pt-0.5 text-sm leading-7 text-slate-200">
+                {numberedMatch[2]}
+              </p>
+            </div>
+          );
+        }
+
+        if (bulletMatch) {
+          return (
+            <div
+              key={`${line}-${index}`}
+              className="flex gap-3"
+            >
+              <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+
+              <p className="text-sm leading-7 text-slate-200">
+                {bulletMatch[1]}
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <p
+            key={`${line}-${index}`}
+            className="text-sm leading-7 text-slate-300"
+          >
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function BusinessBuilderPage() {
   const [idea, setIdea] = useState("");
   const [industry, setIndustry] = useState("");
@@ -62,17 +136,32 @@ export default function BusinessBuilderPage() {
     (section) => section.title.toLowerCase() === "5 actions prioritaires"
   );
 
-  const plan30 = sections.find(
-    (section) => section.title.toLowerCase() === "plan 30 jours"
-  );
+  const plan30 = sections.find((section) => {
+    const title = section.title.toLowerCase();
 
-  const plan60 = sections.find(
-    (section) => section.title.toLowerCase() === "plan 60 jours"
-  );
+    return (
+      title === "plan 30 jours" ||
+      title === "30 jours"
+    );
+  });
 
-  const plan90 = sections.find(
-    (section) => section.title.toLowerCase() === "plan 90 jours"
-  );
+  const plan60 = sections.find((section) => {
+    const title = section.title.toLowerCase();
+
+    return (
+      title === "plan 60 jours" ||
+      title === "60 jours"
+    );
+  });
+
+  const plan90 = sections.find((section) => {
+    const title = section.title.toLowerCase();
+
+    return (
+      title === "plan 90 jours" ||
+      title === "90 jours"
+    );
+  });
 
   const finalRecommendation = sections.find(
     (section) =>
@@ -388,8 +477,10 @@ export default function BusinessBuilderPage() {
                           5 actions prioritaires
                         </h3>
 
-                        <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">
-                          {prioritySection.content}
+                        <div className="mt-4">
+                          <FormattedContent
+                            content={prioritySection.content}
+                          />
                         </div>
                       </section>
                     )}
@@ -404,8 +495,10 @@ export default function BusinessBuilderPage() {
                             <h3 className="mt-2 text-lg font-bold text-white">
                               Lancement
                             </h3>
-                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
-                              {plan30.content}
+                            <div className="mt-3">
+                              <FormattedContent
+                                content={plan30.content}
+                              />
                             </div>
                           </section>
                         )}
@@ -418,8 +511,10 @@ export default function BusinessBuilderPage() {
                             <h3 className="mt-2 text-lg font-bold text-white">
                               Validation
                             </h3>
-                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
-                              {plan60.content}
+                            <div className="mt-3">
+                              <FormattedContent
+                                content={plan60.content}
+                              />
                             </div>
                           </section>
                         )}
@@ -432,8 +527,10 @@ export default function BusinessBuilderPage() {
                             <h3 className="mt-2 text-lg font-bold text-white">
                               Accélération
                             </h3>
-                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
-                              {plan90.content}
+                            <div className="mt-3">
+                              <FormattedContent
+                                content={plan90.content}
+                              />
                             </div>
                           </section>
                         )}
@@ -447,8 +544,11 @@ export default function BusinessBuilderPage() {
                         return (
                           title !== "5 actions prioritaires" &&
                           title !== "plan 30 jours" &&
+                          title !== "30 jours" &&
                           title !== "plan 60 jours" &&
+                          title !== "60 jours" &&
                           title !== "plan 90 jours" &&
+                          title !== "90 jours" &&
                           title !== "recommandation finale creatorbusinessai"
                         );
                       })
@@ -461,8 +561,10 @@ export default function BusinessBuilderPage() {
                             {section.title}
                           </h3>
 
-                          <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                            {section.content}
+                          <div className="mt-4">
+                            <FormattedContent
+                              content={section.content}
+                            />
                           </div>
                         </section>
                       ))}
@@ -477,8 +579,10 @@ export default function BusinessBuilderPage() {
                           Recommandation finale CreatorBusinessAI
                         </h3>
 
-                        <div className="mt-4 whitespace-pre-wrap text-base leading-8 text-slate-100">
-                          {finalRecommendation.content}
+                        <div className="mt-4">
+                          <FormattedContent
+                            content={finalRecommendation.content}
+                          />
                         </div>
                       </section>
                     )}
