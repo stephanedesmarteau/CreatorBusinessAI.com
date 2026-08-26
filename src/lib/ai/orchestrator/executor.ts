@@ -18,6 +18,29 @@ function getModel(agent: OrchestratorAgent) {
     : "gpt-5.6-terra";
 }
 
+
+function compactDependencyOutput(
+  output: string,
+  maxChars = 12000
+) {
+  const text = output.trim();
+
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  const headSize = Math.floor(maxChars * 0.7);
+  const tailSize = maxChars - headSize;
+
+  return `
+${text.slice(0, headSize)}
+
+[... contenu intermédiaire condensé pour optimiser l'orchestration ...]
+
+${text.slice(-tailSize)}
+  `.trim();
+}
+
 async function executeResearchStep(
   mission: string,
   step: OrchestratorStep
@@ -233,7 +256,7 @@ export async function executeOrchestratorPlan(
 Agent : ${dependency.agent}
 Statut : ${dependency.status}
 
-${dependency.output}
+${compactDependencyOutput(dependency.output)}
                   `.trim();
                 })
                 .filter(Boolean)
