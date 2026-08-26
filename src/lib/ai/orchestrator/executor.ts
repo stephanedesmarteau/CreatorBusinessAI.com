@@ -177,12 +177,104 @@ async function executeStep(
 export async function executeOrchestratorPlan(
   plan: OrchestratorPlan
 ): Promise<OrchestratorStepResult[]> {
-  return Promise.all(
-    plan.steps.map((step) =>
-      executeStep(
-        plan.mission,
-        step
-      )
-    )
+  const pending = new Map(
+    plan.steps.map((step) => [
+      step.id,
+      step,
+    ])
   );
+
+  const results = new Map<
+    string,
+    OrchestratorStepResult
+  >();
+
+  while (pending.size > 0) {
+    const ready = Array.from(
+      pending.values()
+    ).filter((step) =>
+      step.dependsOn.every((dependencyId) =>
+        results.has(dependencyId)
+      )
+    );
+
+    if (ready.length === 0) {
+      const blocked = Array.from(
+        pending.values()
+      ).map((step) => ({
+        id: step.id,
+        dependsOn: step.dependsOn,
+      }));
+
+      throw new Error(
+        `Plan Orchestrator bloqué ou dépendance invalide: ${JSON.stringify(
+          blocked
+        )}`
+      );
+    }
+
+    const waveResults = await Promise.all(
+      ready.map(async (step) => {
+        const dependencyContext =
+          step.dependsOn.length > 0
+            ? step.dependsOn
+                .map((dependencyId) => {
+                  const dependency =
+                    results.get(
+                      dependencyId
+                    );
+
+                  if (!dependency) {
+                    return "";
+                  }
+
+                  return `
+=== RÉSULTAT ${dependency.title} ===
+Agent : ${dependency.agent}
+Statut : ${dependency.status}
+
+${dependency.output}
+                  `.trim();
+                })
+                .filter(Boolean)
+                .join("\n\n")
+            : "";
+
+        const enrichedStep: OrchestratorStep =
+          dependencyContext
+            ? {
+                ...step,
+                objective: `
+${step.objective}
+
+CONTEXTE DES ÉTAPES PRÉCÉDENTES
+${dependencyContext}
+
+Utilise ces résultats comme contexte.
+Ne les répète pas inutilement.
+                `.trim(),
+              }
+            : step;
+
+        return executeStep(
+          plan.mission,
+          enrichedStep
+        );
+      })
+    );
+
+    for (const result of waveResults) {
+      results.set(result.id, result);
+      pending.delete(result.id);
+    }
+  }
+
+  return plan.steps
+    .map((step) => results.get(step.id))
+    .filter(
+      (
+        result
+      ): result is OrchestratorStepResult =>
+        Boolean(result)
+    );
 }

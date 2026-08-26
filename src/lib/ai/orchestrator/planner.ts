@@ -39,7 +39,7 @@ function normalizeSteps(rawSteps: unknown): OrchestratorStep[] {
     return [];
   }
 
-  return rawSteps.slice(0, 4).map((raw, index) => {
+  return rawSteps.slice(0, 6).map((raw, index) => {
     const item =
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>)
@@ -63,8 +63,172 @@ function normalizeSteps(rawSteps: unknown): OrchestratorStep[] {
       objective:
         String(item.objective ?? "").trim() ||
         "Analyser cette partie de la mission.",
-      dependsOn: [],
+      dependsOn: Array.isArray(item.dependsOn)
+        ? item.dependsOn
+            .map((value) => String(value).trim())
+            .filter(Boolean)
+        : [],
       status: "pending",
+    };
+  });
+}
+
+
+function validatePlanSteps(
+  steps: OrchestratorStep[]
+): OrchestratorStep[] {
+  const ids = new Set(steps.map((step) => step.id));
+
+  const sanitized = steps.map((step) => ({
+    ...step,
+    dependsOn: step.dependsOn.filter(
+      (dependencyId) =>
+        dependencyId !== step.id &&
+        ids.has(dependencyId)
+    ),
+  }));
+
+  const graph = new Map(
+    sanitized.map((step) => [
+      step.id,
+      step.dependsOn,
+    ])
+  );
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const hasCycle = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+
+    visiting.add(id);
+
+    for (const dependencyId of graph.get(id) ?? []) {
+      if (hasCycle(dependencyId)) {
+        return true;
+      }
+    }
+
+    visiting.delete(id);
+    visited.add(id);
+
+    return false;
+  };
+
+  for (const step of sanitized) {
+    if (hasCycle(step.id)) {
+      console.warn(
+        "Planner: dépendance circulaire détectée. Retour au plan parallèle."
+      );
+
+      return sanitized.map((item) => ({
+        ...item,
+        dependsOn: [],
+      }));
+    }
+  }
+
+  return sanitized;
+}
+
+
+function inferDependencies(
+  steps: OrchestratorStep[],
+  strategy: string
+): OrchestratorStep[] {
+  if (steps.length < 2) {
+    return steps;
+  }
+
+  const hasExplicitDependencies =
+    steps.some(
+      (step) => step.dependsOn.length > 0
+    );
+
+  if (hasExplicitDependencies) {
+    return steps;
+  }
+
+  const strategyText =
+    strategy.toLowerCase();
+
+  const sequentialIntent =
+    strategyText.includes("séquent") ||
+    strategyText.includes("sequent") ||
+    strategyText.includes("hybride") ||
+    strategyText.includes("fondée sur") ||
+    strategyText.includes("suivie") ||
+    strategyText.includes("ensuite");
+
+  if (!sequentialIntent) {
+    return steps;
+  }
+
+  const researchSteps =
+    steps.filter(
+      (step) => step.agent === "research"
+    );
+
+  const businessSteps =
+    steps.filter(
+      (step) => step.agent === "business"
+    );
+
+  const marketingSteps =
+    steps.filter(
+      (step) => step.agent === "marketing"
+    );
+
+  return steps.map((step, index) => {
+    if (index === 0) {
+      return step;
+    }
+
+    if (
+      step.agent === "business" &&
+      researchSteps.length > 0
+    ) {
+      return {
+        ...step,
+        dependsOn: researchSteps.map(
+          (item) => item.id
+        ),
+      };
+    }
+
+    if (step.agent === "marketing") {
+      const dependencies = [
+        ...researchSteps,
+        ...businessSteps,
+      ]
+        .filter(
+          (item) =>
+            steps.indexOf(item) < index
+        )
+        .map((item) => item.id);
+
+      return {
+        ...step,
+        dependsOn:
+          dependencies.length > 0
+            ? dependencies
+            : [steps[index - 1].id],
+      };
+    }
+
+    if (step.agent === "general") {
+      return {
+        ...step,
+        dependsOn: steps
+          .slice(0, index)
+          .map((item) => item.id),
+      };
+    }
+
+    return {
+      ...step,
+      dependsOn: [steps[index - 1].id],
     };
   });
 }
@@ -95,13 +259,25 @@ code
 marketing
 general
 
-Crée entre 2 et 4 étapes maximum.
+Crée entre 2 et 6 étapes maximum.
+
+Tu peux créer deux types de plan :
+
+1. PARALLÈLE
+Utilise plusieurs agents indépendants lorsque leurs analyses peuvent être réalisées simultanément.
+
+2. SÉQUENTIEL / HYBRIDE
+Utilise dependsOn lorsqu'une étape doit exploiter les résultats d'une étape précédente.
 
 Règles :
-- Toutes les étapes doivent pouvoir s'exécuter en parallèle.
-- Ne crée aucune dépendance entre étapes.
+- Évite les dépendances inutiles.
+- Plusieurs étapes peuvent partager la même dépendance.
+- Une étape peut dépendre de plusieurs étapes.
+- Ne crée jamais de dépendance circulaire.
+- Une étape = un objectif clair.
 - Évite les étapes redondantes.
-- Une étape = un domaine clair.
+- Utilise research avant business/code/marketing lorsque des faits récents sont nécessaires.
+- Une étape de validation ou critique peut dépendre d'une étape de création.
 - N'utilise pas image, video ou voice ici.
 - Réponds uniquement avec du JSON valide.
 
@@ -113,7 +289,8 @@ Format :
     {
       "title": "Analyse du marché",
       "agent": "research",
-      "objective": "objectif précis"
+      "objective": "objectif précis",
+      "dependsOn": []
     }
   ]
 }
@@ -128,7 +305,23 @@ Format :
 
   try {
     const parsed = extractJson(response.output_text);
-    const steps = normalizeSteps(parsed.steps);
+
+    const strategy =
+      String(parsed.strategy ?? "").trim() ||
+      "Exécution parallèle multi-agents.";
+
+    const normalizedSteps =
+      validatePlanSteps(
+        normalizeSteps(parsed.steps)
+      );
+
+    const steps =
+      validatePlanSteps(
+        inferDependencies(
+          normalizedSteps,
+          strategy
+        )
+      );
 
     if (!steps.length) {
       throw new Error("Aucune étape générée.");
@@ -136,9 +329,7 @@ Format :
 
     return {
       mission,
-      strategy:
-        String(parsed.strategy ?? "").trim() ||
-        "Exécution parallèle multi-agents.",
+      strategy,
       steps,
     };
   } catch (error) {
