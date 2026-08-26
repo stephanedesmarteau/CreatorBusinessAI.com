@@ -170,50 +170,35 @@ function inferDependencies(
       (step) => step.agent === "research"
     );
 
-  const businessSteps =
-    steps.filter(
-      (step) => step.agent === "business"
-    );
-
-  const marketingSteps =
-    steps.filter(
-      (step) => step.agent === "marketing"
-    );
+  const priorResearchIds = (
+    index: number
+  ) =>
+    researchSteps
+      .filter(
+        (item) =>
+          steps.indexOf(item) < index
+      )
+      .map((item) => item.id);
 
   return steps.map((step, index) => {
     if (index === 0) {
       return step;
     }
 
+    const researchDependencies =
+      priorResearchIds(index);
+
     if (
-      step.agent === "business" &&
-      researchSteps.length > 0
+      step.agent === "business" ||
+      step.agent === "marketing" ||
+      step.agent === "code"
     ) {
       return {
         ...step,
-        dependsOn: researchSteps.map(
-          (item) => item.id
-        ),
-      };
-    }
-
-    if (step.agent === "marketing") {
-      const dependencies = [
-        ...researchSteps,
-        ...businessSteps,
-      ]
-        .filter(
-          (item) =>
-            steps.indexOf(item) < index
-        )
-        .map((item) => item.id);
-
-      return {
-        ...step,
         dependsOn:
-          dependencies.length > 0
-            ? dependencies
-            : [steps[index - 1].id],
+          researchDependencies.length > 0
+            ? researchDependencies
+            : [],
       };
     }
 
@@ -228,7 +213,10 @@ function inferDependencies(
 
     return {
       ...step,
-      dependsOn: [steps[index - 1].id],
+      dependsOn:
+        researchDependencies.length > 0
+          ? researchDependencies
+          : [],
     };
   });
 }
