@@ -39,7 +39,7 @@ function normalizeSteps(rawSteps: unknown): OrchestratorStep[] {
     return [];
   }
 
-  return rawSteps.slice(0, 6).map((raw, index) => {
+  return rawSteps.slice(0, 4).map((raw, index) => {
     const item =
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>)
@@ -247,7 +247,7 @@ code
 marketing
 general
 
-Crée entre 2 et 6 étapes maximum.
+Crée entre 2 et 4 étapes maximum.
 
 Tu peux créer deux types de plan :
 
@@ -264,6 +264,13 @@ Règles :
 - Ne crée jamais de dépendance circulaire.
 - Une étape = un objectif clair.
 - Évite les étapes redondantes.
+- Utilise normalement UNE SEULE étape par spécialité.
+- Ne crée pas deux agents business, deux agents marketing ou deux agents research sauf nécessité exceptionnelle.
+- Pour une mission business complexe standard, préfère :
+  1. research
+  2. business
+  3. marketing
+  4. general pour risques, validation et plan d'exécution
 - Utilise research avant business/code/marketing lorsque des faits récents sont nécessaires.
 - Une étape de validation ou critique peut dépendre d'une étape de création.
 - N'utilise pas image, video ou voice ici.

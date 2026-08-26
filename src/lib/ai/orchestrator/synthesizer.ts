@@ -29,6 +29,7 @@ ${step.output}
     reasoning: {
       effort: "low",
     },
+    max_output_tokens: 4000,
     input: [
       {
         role: "developer",
@@ -46,7 +47,10 @@ Ta tâche :
 - produire un plan d'action clair ;
 - répondre directement à la mission de l'utilisateur ;
 - rester structuré et concis ;
-- conserver les éléments techniques réellement utiles.
+- conserver les éléments techniques réellement utiles ;
+- produire une réponse finale complète mais sans recopier les rapports des agents ;
+- privilégier les décisions, preuves, risques et prochaines actions ;
+- viser une synthèse d'environ 1 500 à 2 500 mots maximum.
 
 Ne prétends pas avoir utilisé Internet si aucune recherche Web réelle
 n'a été effectuée.

@@ -67,6 +67,7 @@ export async function researchWeb(
     reasoning: {
       effort: "low",
     },
+    max_output_tokens: 4500,
     tools: [
       {
         type: "web_search_preview",
@@ -91,7 +92,13 @@ Objectifs :
 - vérifier les dates ;
 - éviter les affirmations non soutenues ;
 - signaler les incertitudes ;
-- produire une synthèse directement exploitable.
+- produire une synthèse directement exploitable ;
+- rester dense et décisionnel ;
+- limiter la réponse aux informations réellement utiles ;
+- éviter les longues descriptions de contexte ;
+- viser environ 1 500 à 2 500 mots maximum ;
+- privilégier tableaux, chiffres clés, conclusions et sources ;
+- ne pas répéter plusieurs fois la même information.
 
 Pour les sujets canadiens, privilégie lorsque pertinent :
 - Gouvernement du Canada ;

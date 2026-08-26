@@ -111,6 +111,7 @@ async function executeStandardStep(
       reasoning: {
         effort: "low",
       },
+      max_output_tokens: 3000,
       input: [
         {
           role: "developer",
@@ -130,6 +131,10 @@ Règles :
 - Sois concret, précis et exploitable.
 - Évite les longues introductions.
 - Fournis une sortie que le Chief Orchestrator pourra fusionner.
+- Priorise les décisions, chiffres, risques et actions.
+- Évite de reformuler la mission.
+- Ne produis pas un rapport complet.
+- Vise environ 800 à 1 500 mots maximum.
           `.trim(),
         },
         {
