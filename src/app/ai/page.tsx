@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { evaluateComplexity } from "@/lib/ai/complexity-router";
 
 export default function AICentralPage() {
   const [message, setMessage] = useState("");
   const [conversationId, setConversationId] = useState("");
   const [superMode, setSuperMode] = useState(true);
+  const [complexityDecision, setComplexityDecision] = useState<any>(null);
   const [orchestratorData, setOrchestratorData] = useState<any>(null);
   const [route, setRoute] = useState("");
   const [result, setResult] = useState("");
@@ -622,6 +624,7 @@ Important :
     setRoute("");
     setResult("");
     setOrchestratorData(null);
+    setComplexityDecision(null);
     setImageData("");
     setImageType("");
     setImageMimeType("image/png");
@@ -685,8 +688,17 @@ Instructions :
           body: formData,
         });
       } else {
+        const complexity =
+          evaluateComplexity(message);
+
+        setComplexityDecision(complexity);
+
+        const useOrchestrator =
+          superMode ||
+          complexity.route === "complex";
+
         response = await fetch(
-          superMode
+          useOrchestrator
             ? "/api/orchestrator"
             : "/api/ai-router",
           {
@@ -1067,6 +1079,30 @@ Instructions :
           {error && (
             <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-red-300">
               {error}
+            </div>
+          )}
+
+          {complexityDecision && !sourceImage && (
+            <div className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
+                Routage intelligent
+              </p>
+
+              <p className="mt-2 text-lg font-bold text-white">
+                {superMode
+                  ? "Super AI forcé"
+                  : complexityDecision.route === "complex"
+                    ? "Mission complexe → Super Orchestrator"
+                    : "Mission simple → AI Router rapide"}
+              </p>
+
+              <p className="mt-2 text-sm text-slate-300">
+                Score de complexité : {complexityDecision.score}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {complexityDecision.reasons?.join(" • ")}
+              </p>
             </div>
           )}
 
