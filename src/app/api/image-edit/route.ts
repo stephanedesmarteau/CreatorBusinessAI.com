@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     const formData = await request.formData();
 
     const image = formData.get("image");
+    const mask = formData.get("mask");
+    const editMode = String(formData.get("editMode") ?? "full");
     const prompt = String(formData.get("prompt") ?? "").trim();
     const size = String(formData.get("size") ?? "1024x1024");
     const quality = String(formData.get("quality") ?? "medium");
@@ -45,9 +47,24 @@ export async function POST(request: Request) {
       }
     );
 
+    let maskUpload;
+
+    if (editMode === "mask" && mask instanceof File) {
+      const maskBytes = Buffer.from(await mask.arrayBuffer());
+
+      maskUpload = await toFile(
+        maskBytes,
+        mask.name || "mask.png",
+        {
+          type: mask.type || "image/png",
+        }
+      );
+    }
+
     const response = await client.images.edit({
       model: "gpt-image-2",
       image: upload,
+      ...(maskUpload ? { mask: maskUpload } : {}),
       prompt,
       size: size as "1024x1024" | "1536x1024" | "1024x1536",
       quality: quality as "low" | "medium" | "high",

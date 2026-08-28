@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { evaluateComplexity } from "@/lib/ai/complexity-router";
 
 export default function AICentralPage() {
@@ -32,6 +32,10 @@ export default function AICentralPage() {
   const [imageSize, setImageSize] = useState("1024x1024");
   const [imageQuality, setImageQuality] = useState("medium");
   const [editMode, setEditMode] = useState<"full" | "mask">("full");
+  const [maskData, setMaskData] = useState("");
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const maskImageRef = useRef<HTMLImageElement | null>(null);
+  const maskDrawingRef = useRef(false);
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [sourcePreview, setSourcePreview] = useState("");
   const [imageHistory, setImageHistory] = useState<
@@ -629,6 +633,78 @@ Important :
     setImageType("");
     setImageMimeType("image/png");
 
+    if (sourceImage) {
+      try {
+        const formData = new FormData();
+
+        formData.append("image", sourceImage);
+        formData.append("prompt", message);
+        formData.append("size", imageSize);
+        formData.append("quality", imageQuality);
+        formData.append("editMode", editMode);
+
+        if (editMode === "mask" && maskData) {
+          const maskResponse = await fetch(maskData);
+          const maskBlob = await maskResponse.blob();
+
+          formData.append(
+            "mask",
+            new File([maskBlob], "mask.png", {
+              type: "image/png",
+            })
+          );
+        }
+
+        const response = await fetch("/api/image-edit", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Erreur Image Engine.");
+        }
+
+        setRoute("image");
+        setResult(data.result || "");
+
+        if (data.image?.data) {
+          const nextImageType = data.image.type || "";
+          const nextMimeType = data.image.mimeType || "image/png";
+          const nextImageData = data.image.data;
+
+          setImageData(nextImageData);
+          setImageType(nextImageType);
+          setImageMimeType(nextMimeType);
+
+          const src =
+            nextImageType === "base64"
+              ? `data:${nextMimeType};base64,${nextImageData}`
+              : nextImageData;
+
+          setImageHistory((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              src,
+              label: `Version ${current.length + 1}`,
+            },
+          ]);
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue pendant l'édition d'image."
+        );
+      } finally {
+        setLoading(false);
+      }
+
+      return;
+    }
+
     try {
       const activeConversationId =
         await ensureConversation();
@@ -682,6 +758,19 @@ Instructions :
         formData.append("prompt", message);
         formData.append("size", imageSize);
         formData.append("quality", imageQuality);
+        formData.append("editMode", editMode);
+
+        if (editMode === "mask" && maskData) {
+          const maskResponse = await fetch(maskData);
+          const maskBlob = await maskResponse.blob();
+
+          formData.append(
+            "mask",
+            new File([maskBlob], "mask.png", {
+              type: "image/png",
+            })
+          );
+        }
 
         response = await fetch("/api/image-edit", {
           method: "POST",
@@ -867,6 +956,34 @@ Instructions :
             </div>
 
             <div className="mb-4">
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Mode d'édition
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "Image complète", value: "full" },
+                    { label: "Zone sélectionnée", value: "mask" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() =>
+                        setEditMode(option.value as "full" | "mask")
+                      }
+                      className={
+                        editMode === option.value
+                          ? "rounded-2xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-3 text-sm font-bold text-cyan-200"
+                          : "rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
                 Qualité
               </p>
@@ -915,6 +1032,123 @@ Instructions :
 
               {sourceImage && sourcePreview && (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+
+                  {editMode === "mask" && (
+                    <div className="mb-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+                        Zone à modifier
+                      </p>
+
+                      <p className="mt-2 text-xs leading-5 text-slate-300">
+                        Le mode de sélection ciblée est actif. Le canevas de masque sera utilisé pour indiquer précisément la zone à modifier.
+                      </p>
+
+                      <div className="relative mt-4 overflow-hidden rounded-2xl border border-cyan-400/20">
+                        <img
+                          ref={maskImageRef}
+                          src={sourcePreview}
+                          alt="Image à masquer"
+                          className="block h-auto w-full"
+                        />
+
+                        <canvas
+                          ref={maskCanvasRef}
+                          className="absolute inset-0 h-full w-full cursor-crosshair"
+                          onPointerDown={(e) => {
+                            const canvas = maskCanvasRef.current;
+                            if (!canvas) return;
+
+                            const rect = canvas.getBoundingClientRect();
+                            const image = maskImageRef.current;
+                            if (!image) return;
+
+                            const naturalWidth = image.naturalWidth;
+                            const naturalHeight = image.naturalHeight;
+
+                            if (
+                              canvas.width !== naturalWidth ||
+                              canvas.height !== naturalHeight
+                            ) {
+                              canvas.width = naturalWidth;
+                              canvas.height = naturalHeight;
+                            }
+
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+
+                            maskDrawingRef.current = true;
+
+                            const ctx = canvas.getContext("2d");
+                            if (!ctx) return;
+
+                            ctx.lineWidth = 30 * Math.max(scaleX, scaleY);
+                            ctx.lineCap = "round";
+                            ctx.lineJoin = "round";
+                            ctx.strokeStyle = "rgba(255,255,255,0.85)";
+
+                            ctx.beginPath();
+                            ctx.moveTo(
+                              (e.clientX - rect.left) * scaleX,
+                              (e.clientY - rect.top) * scaleY
+                            );
+                          }}
+                          onPointerMove={(e) => {
+                            if (!maskDrawingRef.current) return;
+
+                            const canvas = maskCanvasRef.current;
+                            if (!canvas) return;
+
+                            const rect = canvas.getBoundingClientRect();
+                            const ctx = canvas.getContext("2d");
+                            if (!ctx) return;
+
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+
+                            ctx.lineTo(
+                              (e.clientX - rect.left) * scaleX,
+                              (e.clientY - rect.top) * scaleY
+                            );
+                            ctx.stroke();
+                          }}
+                          onPointerUp={() => {
+                            maskDrawingRef.current = false;
+
+                            const canvas = maskCanvasRef.current;
+                            if (!canvas) return;
+
+                            setMaskData(canvas.toDataURL("image/png"));
+                          }}
+                          onPointerLeave={() => {
+                            maskDrawingRef.current = false;
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const canvas = maskCanvasRef.current;
+                            if (!canvas) return;
+
+                            const ctx = canvas.getContext("2d");
+                            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                            setMaskData("");
+                          }}
+                          className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-white transition hover:bg-white/[0.10]"
+                        >
+                          Effacer le masque
+                        </button>
+
+                        {maskData && (
+                          <span className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300">
+                            Zone sélectionnée prête
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="overflow-hidden rounded-xl border border-white/10">
                     <img
                       src={sourcePreview}
@@ -1039,21 +1273,37 @@ Instructions :
               className="min-h-44 w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-white outline-none transition focus:border-blue-400/60"
             />
 
-            <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-4">
+            <label
+              className={
+                sourceImage
+                  ? "mt-4 flex cursor-not-allowed items-center justify-between gap-4 rounded-2xl border border-slate-500/20 bg-slate-500/10 p-4 opacity-60"
+                  : "mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-4"
+              }
+            >
               <div>
-                <p className="text-sm font-bold text-fuchsia-200">
+                <p
+                  className={
+                    sourceImage
+                      ? "text-sm font-bold text-slate-300"
+                      : "text-sm font-bold text-fuchsia-200"
+                  }
+                >
                   Mode Super AI
                 </p>
+
                 <p className="mt-1 text-xs text-slate-400">
-                  {superMode
-                    ? "ACTIVÉ — plusieurs agents collaborent, planifient et synthétisent la mission."
-                    : "DÉSACTIVÉ — une seule route IA sera utilisée."}
+                  {sourceImage
+                    ? "DÉSACTIVÉ POUR L'ÉDITION D'IMAGE — Image Engine est utilisé directement."
+                    : superMode
+                      ? "ACTIVÉ — plusieurs agents collaborent, planifient et synthétisent la mission."
+                      : "DÉSACTIVÉ — une seule route IA sera utilisée."}
                 </p>
               </div>
 
               <input
                 type="checkbox"
-                checked={superMode}
+                checked={sourceImage ? false : superMode}
+                disabled={Boolean(sourceImage)}
                 onChange={(e) =>
                   setSuperMode(e.target.checked)
                 }
@@ -1067,12 +1317,16 @@ Instructions :
               className="mt-4 w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
-                ? superMode
-                  ? "Super AI en cours..."
-                  : "Analyse de la demande..."
-                : superMode
-                  ? "Lancer Super AI →"
-                  : "Lancer CreatorBusinessAI →"}
+                ? sourceImage
+                  ? "Modification de l'image..."
+                  : superMode
+                    ? "Super AI en cours..."
+                    : "Analyse de la demande..."
+                : sourceImage
+                  ? "Modifier l'image →"
+                  : superMode
+                    ? "Lancer Super AI →"
+                    : "Lancer CreatorBusinessAI →"}
             </button>
           </div>
 
