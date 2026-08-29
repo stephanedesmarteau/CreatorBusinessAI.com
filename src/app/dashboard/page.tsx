@@ -1,3 +1,6 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+
 const modules = [
   {
     title: "AI Business Builder",
@@ -22,7 +25,13 @@ const modules = [
   },
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl">
