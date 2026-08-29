@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 export async function GET() {
   try {
-    await getOrCreateDefaultWorkspace();
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+    }
 
     const workspaces = await prisma.workspace.findMany({
+      where: { ownerId: workspace.ownerId },
       orderBy: {
         createdAt: "desc",
       },
@@ -42,6 +47,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const currentWorkspace = await getOrCreateUserWorkspace();
+    if (!currentWorkspace) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const name = String(
@@ -69,6 +79,7 @@ export async function POST(request: Request) {
     const workspace =
       await prisma.workspace.create({
         data: {
+          ownerId: currentWorkspace.ownerId,
           name,
           slug,
           description:
