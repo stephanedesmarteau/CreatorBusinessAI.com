@@ -45,6 +45,67 @@ export default function AICentralPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
+    const restoreLatestConversation = async () => {
+      try {
+        const conversationsResponse = await fetch("/api/conversations");
+        const conversationsData = await conversationsResponse.json();
+
+        if (
+          !conversationsResponse.ok ||
+          !Array.isArray(conversationsData.conversations) ||
+          !conversationsData.conversations.length
+        ) {
+          return;
+        }
+
+        const latestConversation = conversationsData.conversations[0];
+        const latestConversationId = String(latestConversation.id);
+
+        const messagesResponse = await fetch(
+          `/api/messages?conversationId=${encodeURIComponent(
+            latestConversationId
+          )}`
+        );
+
+        const messagesData = await messagesResponse.json();
+
+        if (
+          !messagesResponse.ok ||
+          !Array.isArray(messagesData.messages)
+        ) {
+          return;
+        }
+
+        if (cancelled) return;
+
+        setConversationId(latestConversationId);
+
+        const lastAssistantMessage = [...messagesData.messages]
+          .reverse()
+          .find((item: any) => item.role === "ASSISTANT");
+
+        if (lastAssistantMessage?.content) {
+          setResult(String(lastAssistantMessage.content));
+          setRoute(String(lastAssistantMessage.route ?? ""));
+        }
+      } catch (error) {
+        console.warn(
+          "Impossible de restaurer la dernière conversation:",
+          error
+        );
+      }
+    };
+
+    restoreLatestConversation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!videoId) return;
 
     if (
