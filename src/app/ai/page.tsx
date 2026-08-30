@@ -82,9 +82,19 @@ export default function AICentralPage() {
 
         setConversationId(latestConversationId);
 
-        const lastAssistantMessage = [...messagesData.messages]
-          .reverse()
-          .find((item: any) => item.role === "ASSISTANT");
+        const reversedMessages = [...messagesData.messages].reverse();
+
+        const lastAssistantMessage = reversedMessages.find(
+          (item: any) => item.role === "ASSISTANT"
+        );
+
+        const lastUserMessage = reversedMessages.find(
+          (item: any) => item.role === "USER"
+        );
+
+        if (lastUserMessage?.content) {
+          setMessage(String(lastUserMessage.content));
+        }
 
         if (lastAssistantMessage?.content) {
           setResult(String(lastAssistantMessage.content));
