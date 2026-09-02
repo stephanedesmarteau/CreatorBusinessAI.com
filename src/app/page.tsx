@@ -1,16 +1,20 @@
 import Link from "next/link";
+import { NaturalCreatorLogo } from "@/components/logo";
+import { SloganBanner } from "@/components/slogan-banner";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-white selection:bg-emerald-500 selection:text-white">
       {/* Navigation */}
       <nav className="mx-auto flex max-w-7xl items-center justify-between border-b border-white/10 px-6 py-5">
-        <Link href="/" className="text-xl font-black tracking-tight">
-          NaturalCreator<span className="text-emerald-400">AI</span>
-          <span className="ml-2 text-xs font-semibold text-slate-400">www.naturalcreatorai.com</span>
+        <Link href="/" className="hover:opacity-95 transition">
+          <NaturalCreatorLogo className="h-10" />
         </Link>
 
         <div className="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+          <a href="#slogan" className="transition hover:text-white">
+            Slogan Multilingue
+          </a>
           <a href="#engines" className="transition hover:text-white">
             Les 50+ Moteurs IA
           </a>
@@ -42,8 +46,12 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden px-6 py-24 text-center">
+      <section className="relative overflow-hidden px-6 py-20 text-center">
         <div className="mx-auto max-w-5xl">
+          <div className="mb-8 flex justify-center">
+            <NaturalCreatorLogo className="h-16 scale-110" />
+          </div>
+
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             Meta-Moteur IA Mondial • www.naturalcreatorai.com
@@ -77,8 +85,13 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Slogan Banner Section */}
+      <section id="slogan" className="px-6 py-6">
+        <SloganBanner />
+      </section>
+
       {/* 50+ AI Engines Showcase Section */}
-      <section id="engines" className="border-t border-white/10 bg-black/40 py-20">
+      <section id="engines" className="border-t border-white/10 bg-black/40 py-20 mt-12">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">
@@ -297,7 +310,8 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 px-6 py-10 text-center text-sm text-slate-500">
+      <footer className="border-t border-white/10 px-6 py-12 text-center text-sm text-slate-500 flex flex-col items-center justify-center gap-4">
+        <NaturalCreatorLogo className="h-8" />
         <p>© 2026 NaturalCreatorAI (www.naturalcreatorai.com) — La plateforme IA la plus puissante du marché.</p>
       </footer>
     </main>

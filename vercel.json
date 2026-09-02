@@ -1,4 +1,9 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs"
+  "version": 2,
+  "public": true,
+  "name": "naturalcreatorai",
+  "alias": ["naturalcreatorai.com", "www.naturalcreatorai.com"],
+  "buildCommand": "npx prisma generate && next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install"
 }
