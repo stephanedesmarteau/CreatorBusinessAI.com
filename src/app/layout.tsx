@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CreatorBusinessAI — La Suite IA d'Entreprise Ultime",
-  description: "Créez des entreprises, plans d'affaires, sites web et applications mobiles avec les moteurs IA les plus performants du marché.",
+  title: "NaturalCreatorAI — Le Méta-Moteur des 50+ Meilleures IA au Monde",
+  description: "NaturalCreatorAI (www.naturalcreatorai.com) interroge et combine simultanément les 50 meilleurs moteurs d'intelligence artificielle au monde pour vous offrir la solution ultime dans tous les domaines.",
 };
 
 export default function RootLayout({
