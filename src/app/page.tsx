@@ -3,6 +3,10 @@ import { NaturalCreatorLogo } from "@/components/logo";
 import { SloganBanner } from "@/components/slogan-banner";
 
 export default function Home() {
+  const stripeProLink = process.env.NEXT_PUBLIC_STRIPE_PRO_LINK || "/dashboard";
+  const stripeBusinessLink = process.env.NEXT_PUBLIC_STRIPE_BUSINESS_LINK || "/dashboard";
+  const stripeEnterpriseLink = process.env.NEXT_PUBLIC_STRIPE_ENTERPRISE_LINK || "/dashboard";
+
   return (
     <main className="min-h-screen bg-slate-950 text-white selection:bg-emerald-500 selection:text-white">
       {/* Navigation */}
@@ -244,12 +248,12 @@ export default function Home() {
                   <li className="flex items-center gap-3">✓ Méta-Moteur "Réponse à Tout"</li>
                 </ul>
               </div>
-              <Link
-                href="/dashboard"
+              <a
+                href={stripeProLink}
                 className="mt-8 block rounded-xl border border-white/20 bg-white/10 py-3.5 text-center text-sm font-bold transition hover:bg-white/20"
               >
-                Choisir le Plan Pro
-              </Link>
+                Souscrire au Plan Pro (49$) →
+              </a>
             </div>
 
             {/* Plan Business */}
@@ -273,12 +277,12 @@ export default function Home() {
                   <li className="flex items-center gap-3">✓ Compilation et Déploiement en Direct</li>
                 </ul>
               </div>
-              <Link
-                href="/dashboard"
+              <a
+                href={stripeBusinessLink}
                 className="mt-8 block rounded-xl bg-emerald-500 py-4 text-center text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
               >
-                Démarrer la Business Suite →
-              </Link>
+                Souscrire Business Suite (149$) →
+              </a>
             </div>
 
             {/* Plan Enterprise */}
@@ -298,12 +302,12 @@ export default function Home() {
                   <li className="flex items-center gap-3">✓ Support dédié 24/7 & intégration personnalisée</li>
                 </ul>
               </div>
-              <Link
-                href="/dashboard"
+              <a
+                href={stripeEnterpriseLink}
                 className="mt-8 block rounded-xl border border-white/20 bg-white/10 py-3.5 text-center text-sm font-bold transition hover:bg-white/20"
               >
-                Contacter l'équipe Enterprise
-              </Link>
+                Souscrire Plan Enterprise (399$) →
+              </a>
             </div>
           </div>
         </div>
