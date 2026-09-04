@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 export async function GET(request: Request) {
   try {
+    const currentWorkspace = await getOrCreateUserWorkspace();
+    if (!currentWorkspace) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
     const { searchParams } =
       new URL(request.url);
 
@@ -11,11 +13,12 @@ export async function GET(request: Request) {
       searchParams.get("workspaceId");
 
     if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
-
-      workspaceId = workspace.id;
+      workspaceId = currentWorkspace.id;
     }
+    if (workspaceId !== currentWorkspace.id) {
+      return NextResponse.json({ error: "Accès interdit." }, { status: 403 });
+    }
+
 
     const projects =
       await prisma.project.findMany({
@@ -60,6 +63,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const currentWorkspace = await getOrCreateUserWorkspace();
+    if (!currentWorkspace) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
     const body = await request.json();
 
     let workspaceId =
@@ -68,10 +73,7 @@ export async function POST(request: Request) {
       ).trim();
 
     if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
-
-      workspaceId = workspace.id;
+      workspaceId = currentWorkspace.id;
     }
 
     const name = String(
