@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
+import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 
 const modules = [
@@ -31,6 +34,17 @@ export default async function DashboardPage() {
   if (!user) {
     redirect("/sign-in");
   }
+
+  const workspace = await getOrCreateUserWorkspace();
+
+  const activeProjects = workspace
+    ? await prisma.project.count({
+        where: {
+          workspaceId: workspace.id,
+          status: "ACTIVE",
+        },
+      })
+    : 0;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -83,9 +97,12 @@ export default async function DashboardPage() {
               </p>
             </div>
 
-            <button className="rounded-xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20">
+            <Link
+              href="/projects/new"
+              className="rounded-xl bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20"
+            >
               + Nouveau projet
-            </button>
+            </Link>
           </header>
 
           <section
@@ -162,7 +179,7 @@ export default async function DashboardPage() {
           <section className="mt-10 grid gap-5 md:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <p className="text-sm text-slate-500">Projets actifs</p>
-              <p className="mt-2 text-3xl font-bold">0</p>
+              <p className="mt-2 text-3xl font-bold">{activeProjects}</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">

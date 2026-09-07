@@ -76,6 +76,13 @@ export async function POST(request: Request) {
       workspaceId = currentWorkspace.id;
     }
 
+    if (workspaceId !== currentWorkspace.id) {
+      return NextResponse.json(
+        { error: "Accès interdit." },
+        { status: 403 }
+      );
+    }
+
     const name = String(
       body.name ?? ""
     ).trim();
