@@ -8,6 +8,7 @@ export type ComplexityDecision = {
 
 const complexSignals = [
   "analyse le marché",
+  "analyse du marché",
   "étude de marché",
   "recherche récente",
   "recherche approfondie",
@@ -15,6 +16,7 @@ const complexSignals = [
   "analyse des concurrents",
   "business plan",
   "modèle économique",
+  "modèle d'affaires",
   "strategie marketing",
   "stratégie marketing",
   "plan d'exécution",
@@ -22,6 +24,9 @@ const complexSignals = [
   "feuille de route",
   "analyse complète",
   "analyse approfondie",
+  "stratégie complète",
+  "clientèle cible",
+  "analyse des risques",
   "plusieurs agents",
   "multi-agents",
 ];
