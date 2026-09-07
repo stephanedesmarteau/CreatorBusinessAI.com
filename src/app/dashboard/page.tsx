@@ -37,14 +37,29 @@ export default async function DashboardPage() {
 
   const workspace = await getOrCreateUserWorkspace();
 
-  const activeProjects = workspace
-    ? await prisma.project.count({
+  const projects = workspace
+    ? await prisma.project.findMany({
         where: {
           workspaceId: workspace.id,
           status: "ACTIVE",
         },
+        orderBy: {
+          updatedAt: "desc",
+        },
+        include: {
+          _count: {
+            select: {
+              conversations: true,
+              memories: true,
+              files: true,
+              agentRuns: true,
+            },
+          },
+        },
       })
-    : 0;
+    : [];
+
+  const activeProjects = projects.length;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -137,6 +152,76 @@ export default async function DashboardPage() {
               </div>
             </div>
           </section>
+
+          <section className="mt-10">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-blue-400">
+                  MES PROJETS
+                </p>
+                <h2 className="mt-2 text-2xl font-bold">Vos projets</h2>
+              </div>
+
+              <Link
+                href="/projects/new"
+                className="text-sm font-semibold text-blue-400 hover:text-blue-300"
+              >
+                + Nouveau projet
+              </Link>
+            </div>
+
+            {projects.length === 0 ? (
+              <div className="mt-6 rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
+                <p className="text-lg font-semibold">
+                  Aucun projet pour le moment.
+                </p>
+                <p className="mt-2 text-slate-400">
+                  Créez votre premier projet pour commencer à travailler avec CreatorBusinessAI.
+                </p>
+                <Link
+                  href="/projects/new"
+                  className="mt-5 inline-block rounded-xl bg-blue-500 px-5 py-3 text-sm font-bold text-white"
+                >
+                  Créer un projet
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-5 md:grid-cols-2">
+                {projects.map((project) => (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${project.id}`}
+                    className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:border-blue-400/40 hover:bg-white/[0.06]"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl font-bold">{project.name}</h3>
+                        <p className="mt-2 text-slate-400">
+                          {project.description ?? "Aucune description."}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400">
+                        ACTIF
+                      </span>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-slate-400 sm:grid-cols-4">
+                      <span>{project._count.conversations} conversations</span>
+                      <span>{project._count.memories} mémoires</span>
+                      <span>{project._count.files} fichiers</span>
+                      <span>{project._count.agentRuns} exécutions IA</span>
+                    </div>
+
+                    <p className="mt-6 text-sm font-semibold text-blue-400">
+                      Ouvrir le projet →
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
 
           <section id="modules" className="mt-10">
             <div className="flex items-end justify-between gap-4">
