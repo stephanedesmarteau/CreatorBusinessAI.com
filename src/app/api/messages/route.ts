@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { MessageRole } from "@/generated/prisma/enums";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 const allowedRoles = new Set([
   "USER",
@@ -8,6 +9,32 @@ const allowedRoles = new Set([
   "SYSTEM",
   "TOOL",
 ]);
+
+async function getAuthorizedConversation(conversationId: string) {
+  const workspace = await getOrCreateUserWorkspace();
+
+  if (!workspace) {
+    return {
+      workspace: null,
+      conversation: null,
+    };
+  }
+
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      workspaceId: workspace.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return {
+    workspace,
+    conversation,
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -19,6 +46,23 @@ export async function GET(request: Request) {
       return NextResponse.json(
         { error: "conversationId est requis." },
         { status: 400 }
+      );
+    }
+
+    const { workspace, conversation } =
+      await getAuthorizedConversation(conversationId);
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Conversation introuvable ou accès interdit." },
+        { status: 403 }
       );
     }
 
@@ -72,6 +116,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Rôle de message invalide." },
         { status: 400 }
+      );
+    }
+
+    const { workspace, conversation } =
+      await getAuthorizedConversation(conversationId);
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Conversation introuvable ou accès interdit." },
+        { status: 403 }
       );
     }
 

@@ -1,22 +1,43 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 export async function GET(request: Request) {
   try {
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
-
     const projectId = searchParams.get("projectId");
-    let workspaceId = searchParams.get("workspaceId");
 
-    if (!workspaceId) {
-      const workspace = await getOrCreateDefaultWorkspace();
-      workspaceId = workspace.id;
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId: workspace.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
     }
 
     const conversations = await prisma.conversation.findMany({
       where: {
-        workspaceId,
+        workspaceId: workspace.id,
         ...(projectId ? { projectId } : {}),
       },
       orderBy: {
@@ -33,6 +54,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      workspaceId: workspace.id,
       conversations,
     });
   } catch (error) {
@@ -47,17 +69,38 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const workspace = await getOrCreateUserWorkspace();
 
-    let workspaceId = String(body.workspaceId ?? "").trim();
-
-    if (!workspaceId) {
-      const workspace = await getOrCreateDefaultWorkspace();
-      workspaceId = workspace.id;
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
     }
+
+    const body = await request.json();
 
     const projectId =
       String(body.projectId ?? "").trim() || null;
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId: workspace.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
+    }
 
     const title =
       String(body.title ?? "").trim() ||
@@ -65,7 +108,7 @@ export async function POST(request: Request) {
 
     const conversation = await prisma.conversation.create({
       data: {
-        workspaceId,
+        workspaceId: workspace.id,
         projectId,
         title,
       },
