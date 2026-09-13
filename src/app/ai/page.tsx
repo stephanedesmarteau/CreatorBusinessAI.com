@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { evaluateComplexity } from "@/lib/ai/complexity-router";
 
 export default function AICentralPage() {
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectContextReady, setProjectContextReady] = useState(false);
+
   const [message, setMessage] = useState("");
   const [conversationId, setConversationId] = useState("");
   const [superMode, setSuperMode] = useState(true);
@@ -45,11 +48,23 @@ export default function AICentralPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setProjectId(params.get("projectId"));
+    setProjectContextReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!projectContextReady) return;
+
     let cancelled = false;
 
     const restoreLatestConversation = async () => {
       try {
-        const conversationsResponse = await fetch("/api/conversations");
+        const conversationsResponse = await fetch(
+          projectId
+            ? `/api/conversations?projectId=${encodeURIComponent(projectId)}`
+            : "/api/conversations"
+        );
         const conversationsData = await conversationsResponse.json();
 
         if (
@@ -113,7 +128,7 @@ export default function AICentralPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId, projectContextReady]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -450,6 +465,7 @@ Important :
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          projectId,
           title:
             message.trim().slice(0, 80) ||
             "Conversation AI Central",

@@ -60,6 +60,13 @@ export default async function ProjectPage({
             {project.description ?? "Aucune description."}
           </p>
 
+          <Link
+            href={`/ai?projectId=${encodeURIComponent(project.id)}`}
+            className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500"
+          >
+            Ouvrir AI Central →
+          </Link>
+
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-sm text-slate-500">Conversations</p>
