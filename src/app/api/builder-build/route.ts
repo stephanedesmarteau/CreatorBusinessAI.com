@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { runBuilderBuild } from "@/lib/ai/builder-build-runner";
+import {
+  runBuilderBuild,
+  takeCachedBuilderBuild,
+} from "@/lib/ai/builder-build-runner";
+import { startRuntime } from "@/lib/ai/builder-runtime";
 
 export const maxDuration = 300;
 
@@ -96,13 +100,31 @@ export async function POST(
 
     const result =
       await runBuilderBuild(
+        projectId,
         files
       );
+
+    let runtime = null;
+
+    if (result.success) {
+      const cachedBuild =
+        takeCachedBuilderBuild(
+          projectId
+        );
+
+      runtime =
+        await startRuntime(
+          projectId,
+          files,
+          cachedBuild?.root
+        );
+    }
 
     return NextResponse.json({
       success: true,
       projectId,
       build: result,
+      runtime,
     });
   } catch (error) {
     console.error(

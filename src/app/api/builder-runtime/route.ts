@@ -5,6 +5,9 @@ import {
   startRuntime,
   stopRuntime,
 } from "@/lib/ai/builder-runtime";
+import {
+  takeCachedBuilderBuild,
+} from "@/lib/ai/builder-build-runner";
 
 export const maxDuration = 300;
 
@@ -130,10 +133,16 @@ export async function POST(
             file.content
         );
 
+    const cachedBuild =
+      takeCachedBuilderBuild(
+        project.id
+      );
+
     const runtime =
       await startRuntime(
         project.id,
-        files
+        files,
+        cachedBuild?.root
       );
 
     return NextResponse.json({

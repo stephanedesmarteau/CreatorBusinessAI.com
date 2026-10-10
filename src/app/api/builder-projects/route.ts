@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 export async function GET() {
   try {
     const workspace =
-      await getOrCreateDefaultWorkspace();
+      await getOrCreateUserWorkspace();
+    if (!workspace) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
 
     const projects =
       await prisma.project.findMany({
