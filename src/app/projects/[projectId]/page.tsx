@@ -60,12 +60,28 @@ export default async function ProjectPage({
             {project.description ?? "Aucune description."}
           </p>
 
-          <Link
-            href={`/ai?projectId=${encodeURIComponent(project.id)}`}
-            className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500"
-          >
-            Ouvrir AI Central →
-          </Link>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href={`/ai?projectId=${encodeURIComponent(project.id)}`}
+              className="inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500"
+            >
+              Ouvrir AI Central →
+            </Link>
+
+            <Link
+              href={`/builder?projectId=${encodeURIComponent(project.id)}`}
+              className="inline-flex rounded-xl border border-white/15 bg-white/10 px-5 py-3 font-semibold text-white hover:bg-white/15"
+            >
+              Ouvrir le Builder →
+            </Link>
+
+            <Link
+              href={`/builder?projectId=${encodeURIComponent(project.id)}&handoff=analysis`}
+              className="inline-flex rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-300 hover:bg-emerald-500/20"
+            >
+              Construire depuis l’analyse →
+            </Link>
+          </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
