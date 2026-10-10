@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -68,9 +69,42 @@ export async function buildProject(
 
   const response =
     await client.responses.create({
-      model: "gpt-5.6-sol",
+      model: getAIModel("powerful").id,
       reasoning: {
         effort: "medium",
+      },
+      text: {
+        format: {
+          type: "json_schema",
+          name: "builder_project",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              stack: {
+                type: "array",
+                items: { type: "string" },
+              },
+              files: {
+                type: "array",
+                maxItems: 20,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    path: { type: "string" },
+                    content: { type: "string" },
+                  },
+                  required: ["path", "content"],
+                },
+              },
+            },
+            required: ["name", "description", "stack", "files"],
+          },
+        },
       },
       input: [
         {
@@ -108,6 +142,10 @@ Règles :
 - package.json doit contenir les dépendances nécessaires.
 - Les imports doivent correspondre aux fichiers générés.
 - Le projet doit pouvoir être installé puis lancé.
+- Une application générée ne doit jamais appeler directement une API authentifiée de CreatorBusinessAI comme /api/builder depuis son propre runtime.
+- Ne contourne jamais l'authentification et n'intègre jamais de secret, token statique ou clé API dans le code client généré.
+- Pour poursuivre vers le Builder principal, navigue vers NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN avec uniquement des identifiants non secrets comme projectId.
+- Les opérations protégées doivent ensuite être exécutées depuis CreatorBusinessAI sur son origine authentifiée.
 - N'utilise pas de markdown.
 - Réponds UNIQUEMENT avec du JSON valide.
 

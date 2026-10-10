@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ProductionControlCenter from "@/components/ProductionControlCenter";
 
 type BuilderFile = {
   path: string;
@@ -66,6 +67,8 @@ type RuntimeStatus = {
 };
 
 export default function BuilderPage() {
+  const [parentProjectId, setParentProjectId] = useState<string | null>(null);
+  const [analysisHandoff, setAnalysisHandoff] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [project, setProject] =
     useState<BuilderProject | null>(null);
@@ -216,8 +219,14 @@ export default function BuilderPage() {
     }
   }
 
-  async function startRealRuntime() {
-    if (!project?.id) {
+  async function startRealRuntime(
+    projectId?: string
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    if (!id) {
       return;
     }
 
@@ -235,7 +244,7 @@ export default function BuilderPage() {
           },
           body: JSON.stringify({
             projectId:
-              project.id,
+              id,
           }),
         }
       );
@@ -325,8 +334,14 @@ export default function BuilderPage() {
     );
   }
 
-  async function runRealBuild() {
-    if (!project?.id) {
+  async function runRealBuild(
+    projectId?: string
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    if (!id) {
       return null;
     }
 
@@ -344,7 +359,7 @@ export default function BuilderPage() {
           },
           body: JSON.stringify({
             projectId:
-              project.id,
+              id,
           }),
         }
       );
@@ -366,6 +381,15 @@ export default function BuilderPage() {
         report
       );
 
+      if (
+        report.success &&
+        data.runtime
+      ) {
+        setRuntimeStatus(
+          data.runtime as RuntimeStatus
+        );
+      }
+
       return report;
     } catch (error) {
       setError(
@@ -380,13 +404,24 @@ export default function BuilderPage() {
     }
   }
 
-  async function repairRealBuild() {
+  async function repairRealBuild(
+    projectId?: string,
+    report?: RealBuildReport
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    const currentReport =
+      report ||
+      realBuildReport;
+
     if (
-      !project?.id ||
-      !realBuildReport ||
-      realBuildReport.success
+      !id ||
+      !currentReport ||
+      currentReport.success
     ) {
-      return;
+      return null;
     }
 
     setRepairingBuild(true);
@@ -396,11 +431,11 @@ export default function BuilderPage() {
       const buildLogs = `
 STDOUT
 
-${realBuildReport.stdout}
+${currentReport.stdout}
 
 STDERR
 
-${realBuildReport.stderr}
+${currentReport.stderr}
       `.trim();
 
       const instruction = `
@@ -435,7 +470,7 @@ ${buildLogs}
           },
           body: JSON.stringify({
             projectId:
-              project.id,
+              id,
             instruction,
           }),
         }
@@ -512,31 +547,45 @@ ${buildLogs}
 
       await loadSavedProjects();
       await loadVersions(
-        project.id
+        id
       );
 
       const validation =
-        await validateProject();
+        await validateProject(
+          id
+        );
 
       if (
-        validation &&
-        validation.valid
+        !validation ||
+        !validation.valid
       ) {
-        await runRealBuild();
+        return null;
       }
+
+      return await runRealBuild(
+        id
+      );
     } catch (error) {
       setError(
         error instanceof Error
           ? error.message
           : "Impossible de réparer le build."
       );
+
+      return null;
     } finally {
       setRepairingBuild(false);
     }
   }
 
-  async function validateProject() {
-    if (!project?.id) {
+  async function validateProject(
+    projectId?: string
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    if (!id) {
       return null;
     }
 
@@ -554,7 +603,7 @@ ${buildLogs}
           },
           body: JSON.stringify({
             projectId:
-              project.id,
+              id,
           }),
         }
       );
@@ -590,13 +639,24 @@ ${buildLogs}
     }
   }
 
-  async function repairValidationIssues() {
+  async function repairValidationIssues(
+    projectId?: string,
+    report?: ValidationReport
+  ) {
+    const id =
+      projectId ||
+      project?.id;
+
+    const currentReport =
+      report ||
+      validationReport;
+
     if (
-      !project?.id ||
-      !validationReport ||
-      validationReport.valid
+      !id ||
+      !currentReport ||
+      currentReport.valid
     ) {
-      return;
+      return null;
     }
 
     setRepairingProject(true);
@@ -604,7 +664,7 @@ ${buildLogs}
 
     try {
       const issueText =
-        validationReport.issues
+        currentReport.issues
           .map(
             (issue, index) =>
               `${index + 1}. [${issue.severity.toUpperCase()}] ${issue.code}` +
@@ -642,7 +702,7 @@ ${issueText}
           },
           body: JSON.stringify({
             projectId:
-              project.id,
+              id,
             instruction,
           }),
         }
@@ -717,16 +777,20 @@ ${issueText}
 
       await loadSavedProjects();
       await loadVersions(
-        project.id
+        id
       );
 
-      await validateProject();
+      return await validateProject(
+        id
+      );
     } catch (error) {
       setError(
         error instanceof Error
           ? error.message
           : "Impossible de réparer automatiquement le projet."
       );
+
+      return null;
     } finally {
       setRepairingProject(false);
     }
@@ -935,6 +999,78 @@ ${issueText}
     }
   }
 
+  async function loadAnalysisHandoff(projectId: string) {
+    const response = await fetch(
+      `/api/project-analyses?projectId=${encodeURIComponent(projectId)}`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !Array.isArray(data.analyses) || !data.analyses.length) {
+      throw new Error(data.error || "Aucune analyse disponible pour ce projet.");
+    }
+
+    const analysis = data.analyses[0];
+    const result =
+      analysis.result &&
+      typeof analysis.result === "object" &&
+      !Array.isArray(analysis.result)
+        ? analysis.result
+        : {};
+
+    const formatValue = (value: unknown) => {
+      if (Array.isArray(value)) {
+        return value
+          .map((item, index) => `${index + 1}. ${String(item)}`)
+          .join("\n");
+      }
+
+      return String(value || "").trim();
+    };
+
+    const strategicSections = [
+      ["Résumé stratégique", result.summary],
+      ["Proposition de valeur", result.valueProposition],
+      ["Clientèle cible", result.targetAudience],
+      ["Périmètre du MVP", result.mvpScope],
+      ["Opportunités", result.opportunities],
+      ["Validation du marché", result.marketValidation],
+      ["Analyse concurrentielle", result.competitiveAnalysis],
+      ["Modèle de revenus", result.revenueModel],
+      ["Stratégie de prix", result.pricingStrategy],
+      ["Acquisition clients", result.customerAcquisitionPlan],
+      ["Stratégie marketing", result.marketingStrategy],
+      ["Stratégie de vente", result.salesStrategy],
+      ["Plan opérationnel", result.operationsPlan],
+      ["Économie unitaire", result.unitEconomics],
+      ["Besoins financiers", result.financialNeeds],
+      ["Prévisions financières", result.financialForecast],
+      ["Plan de financement", result.fundingPlan],
+      ["Plan d'exécution", result.executionPlan],
+      ["Indicateurs clés", result.keyMetrics],
+      ["Risques", result.risks],
+      ["Prochaines actions", result.nextActions],
+    ]
+      .map(([title, value]) => {
+        const formatted = formatValue(value);
+        return formatted ? `${title} :\n${formatted}` : "";
+      })
+      .filter(Boolean);
+
+    const handoffPrompt = [
+      "Construis une application complète à partir de cette analyse stratégique.",
+      "Utilise cette analyse comme source de vérité pour l'architecture, les fonctionnalités, le contenu, le parcours utilisateur et les priorités du MVP.",
+      `Projet : ${String(analysis.projectName || "")}`,
+      `Description : ${String(analysis.description || "")}`,
+      `Secteur : ${String(analysis.sector || "")}`,
+      `Marché cible : ${String(analysis.targetMarket || "")}`,
+      `Objectif principal : ${String(analysis.mainGoal || "")}`,
+      ...strategicSections,
+    ].join("\n\n");
+
+    setPrompt(handoffPrompt);
+  }
+
   async function loadSavedProjects() {
     setLoadingProjects(true);
 
@@ -967,10 +1103,114 @@ ${issueText}
       setLoadingProjects(false);
     }
   }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("projectId");
+    const handoff = params.get("handoff");
+
+    const isAnalysisHandoff =
+      handoff === "analysis";
+
+    setAnalysisHandoff(isAnalysisHandoff);
+    setParentProjectId(
+      isAnalysisHandoff ? null : projectId
+    );
+
+    if (projectId && isAnalysisHandoff) {
+      void loadAnalysisHandoff(projectId).catch((error) => {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Impossible de charger l'analyse stratégique."
+        );
+      });
+    }
+  }, []);
+
 
   useEffect(() => {
     void loadSavedProjects();
   }, []);
+
+  useEffect(() => {
+    if (!parentProjectId || project?.id === parentProjectId) {
+      return;
+    }
+
+    const saved = savedProjects.find(
+      (item) => item.id === parentProjectId
+    );
+
+    if (saved) {
+      openSavedProject(saved);
+    }
+  }, [parentProjectId, savedProjects, project?.id]);
+
+
+  async function runAutonomousBuilder(
+    projectId: string
+  ) {
+    const maxValidationRepairs = 2;
+    const maxBuildRepairs = 2;
+
+    let validation =
+      await validateProject(
+        projectId
+      );
+
+    for (
+      let attempt = 0;
+      validation &&
+      !validation.valid &&
+      attempt < maxValidationRepairs;
+      attempt += 1
+    ) {
+      validation =
+        await repairValidationIssues(
+          projectId,
+          validation
+        );
+    }
+
+    if (
+      !validation ||
+      !validation.valid
+    ) {
+      setError(
+        "Le projet n'a pas pu être validé automatiquement après les tentatives de réparation."
+      );
+
+      return;
+    }
+
+    let build =
+      await runRealBuild(
+        projectId
+      );
+
+    for (
+      let attempt = 0;
+      build &&
+      !build.success &&
+      attempt < maxBuildRepairs;
+      attempt += 1
+    ) {
+      build =
+        await repairRealBuild(
+          projectId,
+          build
+        );
+    }
+
+    if (
+      !build ||
+      !build.success
+    ) {
+      setError(
+        "Le projet n'a pas pu être compilé automatiquement après les tentatives de réparation."
+      );
+    }
+  }
 
   async function generateProject() {
     const cleanPrompt =
@@ -1003,6 +1243,9 @@ ${issueText}
           },
           body: JSON.stringify({
             prompt: cleanPrompt,
+            projectId: analysisHandoff
+              ? null
+              : parentProjectId,
           }),
         }
       );
@@ -1034,6 +1277,10 @@ ${issueText}
 
       if (nextProject?.id) {
         await loadVersions(
+          nextProject.id
+        );
+
+        await runAutonomousBuilder(
           nextProject.id
         );
       }
@@ -1252,6 +1499,10 @@ ${issueText}
 
       await loadSavedProjects();
       await loadVersions(
+        project.id
+      );
+
+      await runAutonomousBuilder(
         project.id
       );
     } catch (error) {
@@ -1810,7 +2061,7 @@ ${issueText}
 
                         <button
                           type="button"
-                          onClick={validateProject}
+                          onClick={() => void validateProject()}
                           disabled={validatingProject}
                           className="rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -1902,7 +2153,7 @@ ${issueText}
                           {!validationReport.valid && (
                             <button
                               type="button"
-                              onClick={repairValidationIssues}
+                              onClick={() => void repairValidationIssues()}
                               disabled={repairingProject}
                               className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -1931,7 +2182,7 @@ ${issueText}
 
                         <button
                           type="button"
-                          onClick={runRealBuild}
+                          onClick={() => void runRealBuild()}
                           disabled={buildingProject}
                           className="rounded-xl bg-violet-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -2026,7 +2277,7 @@ ${issueText}
                           {!realBuildReport.success && (
                             <button
                               type="button"
-                              onClick={repairRealBuild}
+                              onClick={() => void repairRealBuild()}
                               disabled={repairingBuild}
                               className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -2089,7 +2340,7 @@ ${issueText}
                         {!runtimeStatus?.running && (
                           <button
                             type="button"
-                            onClick={startRealRuntime}
+                            onClick={() => void startRealRuntime()}
                             disabled={
                               startingRuntime ||
                               realBuildReport?.success !== true
@@ -2133,6 +2384,13 @@ ${issueText}
                           </p>
                         )}
                     </div>
+                  )}
+
+                  {project.id && (
+                    <ProductionControlCenter
+                      projectId={project.id}
+                      projectName={project.name}
+                    />
                   )}
 
                   {project.id && (
