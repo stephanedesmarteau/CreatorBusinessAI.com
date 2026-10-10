@@ -21,6 +21,27 @@ export type BuildRunnerResult = {
   stderr: string;
 };
 
+type CachedBuild = {
+  projectId: string;
+  root: string;
+  createdAt: string;
+};
+
+const globalBuildCache =
+  globalThis as typeof globalThis & {
+    creatorBusinessAIBuildCache?: Map<
+      string,
+      CachedBuild
+    >;
+  };
+
+const buildCache =
+  globalBuildCache.creatorBusinessAIBuildCache ??
+  new Map<string, CachedBuild>();
+
+globalBuildCache.creatorBusinessAIBuildCache =
+  buildCache;
+
 function safePath(
   root: string,
   relative: string
@@ -120,6 +141,7 @@ async function runCommand(
 }
 
 export async function runBuilderBuild(
+  projectId: string,
   files: BuildRunnerFile[]
 ): Promise<BuildRunnerResult> {
   const started =
@@ -173,7 +195,7 @@ export async function runBuilderBuild(
           "--no-fund",
         ],
         tempRoot,
-        180000
+        600000
       );
 
     if (install.code !== 0) {
@@ -199,12 +221,45 @@ export async function runBuilderBuild(
           "build",
         ],
         tempRoot,
-        180000
+        600000
       );
 
+    const success =
+      build.code === 0;
+
+    if (success) {
+      const previous =
+        buildCache.get(
+          projectId
+        );
+
+      if (
+        previous &&
+        previous.root !==
+          tempRoot
+      ) {
+        await rm(
+          previous.root,
+          {
+            recursive: true,
+            force: true,
+          }
+        );
+      }
+
+      buildCache.set(
+        projectId,
+        {
+          projectId,
+          root: tempRoot,
+          createdAt:
+            new Date().toISOString(),
+        }
+      );
+    }
+
     return {
-      success:
-        build.code === 0,
+      success,
       exitCode:
         build.code,
       durationMs:
@@ -216,12 +271,33 @@ export async function runBuilderBuild(
         build.stderr,
     };
   } finally {
-    await rm(
-      tempRoot,
-      {
-        recursive: true,
-        force: true,
-      }
-    );
+    if (
+      buildCache.get(
+        projectId
+      )?.root !== tempRoot
+    ) {
+      await rm(
+        tempRoot,
+        {
+          recursive: true,
+          force: true,
+        }
+      );
+    }
   }
+}
+
+export function takeCachedBuilderBuild(
+  projectId: string
+) {
+  const cached =
+    buildCache.get(projectId);
+
+  if (!cached) {
+    return null;
+  }
+
+  buildCache.delete(projectId);
+
+  return cached;
 }

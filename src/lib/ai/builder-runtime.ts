@@ -1,3 +1,4 @@
+import { getAIModel } from "@/lib/ai/providers";
 import {
   mkdir,
   mkdtemp,
@@ -139,6 +140,7 @@ async function runCommand(
     NODE_ENV: "production",
     NEXT_TELEMETRY_DISABLED: "1",
     CI: "1",
+    NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN: process.env.NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN || "",
   };
 
   return new Promise<{
@@ -267,7 +269,7 @@ export function getRuntimeStatus(
     port:
       runtime.port,
     url:
-      `http://127.0.0.1:${runtime.port}`,
+      `http://localhost:${runtime.port}`,
     startedAt:
       runtime.startedAt,
   };
@@ -335,13 +337,15 @@ export async function stopRuntime(
 
 export async function startRuntime(
   projectId: string,
-  files: RuntimeFile[]
+  files: RuntimeFile[],
+  preparedRoot?: string
 ) {
   await stopRuntime(
     projectId
   );
 
   const root =
+    preparedRoot ??
     await mkdtemp(
       path.join(
         os.tmpdir(),
@@ -350,75 +354,77 @@ export async function startRuntime(
     );
 
   try {
-    for (const file of files) {
-      if (
-        !file.path ||
-        !file.content
-      ) {
-        continue;
-      }
+    if (!preparedRoot) {
+      for (const file of files) {
+        if (
+          !file.path ||
+          !file.content
+        ) {
+          continue;
+        }
 
-      const target =
-        safePath(
-          root,
-          file.path
+        const target =
+          safePath(
+            root,
+            file.path
+          );
+
+        await mkdir(
+          path.dirname(target),
+          {
+            recursive: true,
+          }
         );
 
-      await mkdir(
-        path.dirname(target),
-        {
-          recursive: true,
-        }
-      );
+        await writeFile(
+          target,
+          file.content,
+          "utf8"
+        );
+      }
 
-      await writeFile(
-        target,
-        file.content,
-        "utf8"
-      );
-    }
+      const install =
+        await runCommand(
+          "npm",
+          [
+            "install",
+            "--ignore-scripts",
+            "--include=dev",
+            "--no-audit",
+            "--no-fund",
+          ],
+          root,
+          600000
+        );
 
-    const install =
-      await runCommand(
-        "npm",
-        [
-          "install",
-          "--ignore-scripts",
-          "--include=dev",
-          "--no-audit",
-          "--no-fund",
-        ],
-        root,
-        180000
-      );
+      if (install.code !== 0) {
+        throw new Error(
+          `npm install a échoué.\n${
+            install.stderr ||
+            install.stdout
+          }`
+        );
+      }
 
-    if (install.code !== 0) {
-      throw new Error(
-        `npm install a échoué.\n${
-          install.stderr ||
-          install.stdout
-        }`
-      );
-    }
+      const build =
+        await runCommand(
+          "npm",
+          [
+            "run",
+            "build",
+          ],
+          root,
+          600000
+        );
 
-    const build =
-      await runCommand(
-        "npm",
-        [
-          "run",
-          "build",
-        ],
-        root,
-        180000
-      );
-
-    if (build.code !== 0) {
-      throw new Error(
-        `Le build a échoué.\n${
-          build.stderr ||
-          build.stdout
-        }`
-      );
+      if (build.code !== 0) {
+        throw new Error(
+          `Le build a échoué.\n${
+            build.stderr ||
+            build.stdout
+          }`
+        );
+      }
     }
 
     const port =
@@ -431,6 +437,11 @@ export async function startRuntime(
         TMPDIR: process.env.TMPDIR || "/tmp",
         NODE_ENV: "production",
         NEXT_TELEMETRY_DISABLED: "1",
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+        NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN: process.env.NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN || "",
+        OPENAI_MODEL:
+          process.env.OPENAI_MODEL ||
+          getAIModel("fast").id,
       };
 
     const child: ChildProcess =
@@ -451,7 +462,7 @@ export async function startRuntime(
             runtimeEnv,
           shell: false,
           stdio:
-            "ignore",
+            "inherit",
         }
       );
 
@@ -507,7 +518,7 @@ export async function startRuntime(
       projectId,
       port,
       url:
-        `http://127.0.0.1:${port}`,
+        `http://localhost:${port}`,
       startedAt:
         runtime.startedAt,
     };

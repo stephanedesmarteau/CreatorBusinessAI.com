@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -77,7 +78,7 @@ ${file.content}
 
   const response =
     await client.responses.create({
-      model: "gpt-5.6-sol",
+      model: getAIModel("powerful").id,
       reasoning: {
         effort: "medium",
       },

@@ -1,4 +1,5 @@
 import path from "path";
+import ts from "typescript";
 
 export type BuilderValidationFile = {
   path: string;
@@ -106,98 +107,44 @@ function extractImports(
 }
 
 function basicBracketCheck(
-  content: string
+  content: string,
+  filePath = "file.ts"
 ) {
-  const pairs: Record<
-    string,
-    string
-  > = {
-    "{": "}",
-    "[": "]",
-    "(": ")",
-  };
+  const extension =
+    filePath
+      .split(".")
+      .pop()
+      ?.toLowerCase();
 
-  const closers =
-    new Set(
-      Object.values(pairs)
+  const scriptKind =
+    extension === "tsx"
+      ? ts.ScriptKind.TSX
+      : extension === "jsx"
+        ? ts.ScriptKind.JSX
+        : extension === "js"
+          ? ts.ScriptKind.JS
+          : ts.ScriptKind.TS;
+
+  const sourceFile =
+    ts.createSourceFile(
+      filePath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      scriptKind
     );
 
-  const stack: string[] = [];
-
-  let quote:
-    | "'"
-    | '"'
-    | "`"
-    | null = null;
-
-  let escaped = false;
-
-  for (
-    let i = 0;
-    i < content.length;
-    i++
-  ) {
-    const char =
-      content[i];
-
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-
-    if (
-      quote &&
-      char === "\\"
-    ) {
-      escaped = true;
-      continue;
-    }
-
-    if (quote) {
-      if (char === quote) {
-        quote = null;
+  const parseDiagnostics =
+    (
+      sourceFile as ts.SourceFile & {
+        parseDiagnostics?: readonly ts.Diagnostic[];
       }
+    ).parseDiagnostics ?? [];
 
-      continue;
-    }
-
-    if (
-      char === "'" ||
-      char === '"' ||
-      char === "`"
-    ) {
-      quote =
-        char as
-          | "'"
-          | '"'
-          | "`";
-      continue;
-    }
-
-    if (pairs[char]) {
-      stack.push(
-        pairs[char]
-      );
-      continue;
-    }
-
-    if (
-      closers.has(char)
-    ) {
-      const expected =
-        stack.pop();
-
-      if (
-        expected !== char
-      ) {
-        return false;
-      }
-    }
-  }
-
-  return (
-    stack.length === 0 &&
-    quote === null
+  return !parseDiagnostics.some(
+    (diagnostic) =>
+      diagnostic.category ===
+      ts.DiagnosticCategory.Error
   );
 }
 
@@ -366,7 +313,8 @@ export function validateBuilderProject(
     ) {
       if (
         !basicBracketCheck(
-          file.content
+          file.content,
+          file.path
         )
       ) {
         issues.push({
