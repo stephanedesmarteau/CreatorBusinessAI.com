@@ -42,6 +42,16 @@ enum AgentRunStatus {
   FAILED
 }
 
+enum DeploymentStatus {
+  PREPARING
+  READY
+  DEPLOYING
+  DEPLOYED
+  FAILED
+  ROLLING_BACK
+  ROLLED_BACK
+}
+
 model User {
   id          String   @id @default(cuid())
   clerkUserId String   @unique
@@ -65,12 +75,14 @@ model Workspace {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner         User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  owner         User?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   projects      Project[]
   conversations Conversation[]
   memories      Memory[]
   files         FileAsset[]
   agentRuns     AgentRun[]
+  analyses      ProjectAnalysis[]
+  deployments   Deployment[]
 
   @@index([createdAt])
 }
@@ -84,12 +96,14 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations Conversation[]
   memories      Memory[]
   files         FileAsset[]
   agentRuns     AgentRun[]
   versions      ProjectVersion[]
+  analyses      ProjectAnalysis[]
+  deployments   Deployment[]
 
   @@index([workspaceId])
   @@index([status])
@@ -205,8 +219,65 @@ model ProjectVersion {
   files       Json
   createdAt   DateTime @default(now())
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deployments Deployment[]
 
   @@index([projectId])
+  @@index([createdAt])
+}
+
+model ProjectAnalysis {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  projectId    String?
+  localId      String
+  projectName  String
+  description  String   @db.Text
+  sector       String
+  targetMarket String
+  mainGoal     String
+  result       Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, localId])
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([updatedAt])
+}
+
+model Deployment {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  projectId        String
+  projectVersionId String?
+  provider         String           @default("vercel")
+  environment      String           @default("production")
+  status           DeploymentStatus @default(PREPARING)
+  sourceSnapshot   Json
+  readiness        Json?
+  providerData     Json?
+  productionUrl    String?
+  deploymentUrl    String?
+  commitSha        String?
+  logs             Json?
+  error            String?          @db.Text
+  startedAt        DateTime?
+  completedAt      DateTime?
+  rolledBackAt     DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectVersion ProjectVersion? @relation(fields: [projectVersionId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([projectVersionId])
+  @@index([status])
   @@index([createdAt])
 }
