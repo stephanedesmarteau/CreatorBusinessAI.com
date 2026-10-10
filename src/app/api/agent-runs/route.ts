@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { AgentRunStatus } from "@/generated/prisma/enums";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 const allowedStatuses = new Set([
   "PENDING",
@@ -14,17 +14,33 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    let workspaceId =
-      searchParams.get("workspaceId");
+    const workspace =
+      await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    const workspaceId = workspace.id;
 
     const projectId =
       searchParams.get("projectId");
 
-    if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, workspaceId },
+        select: { id: true },
+      });
 
-      workspaceId = workspace.id;
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
     }
 
     const agentRuns = await prisma.agentRun.findMany({
@@ -56,14 +72,33 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    let workspaceId =
-      String(body.workspaceId ?? "").trim();
+    const workspace =
+      await getOrCreateUserWorkspace();
 
-    if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
 
-      workspaceId = workspace.id;
+    const workspaceId = workspace.id;
+
+    const projectId =
+      String(body.projectId ?? "").trim() || null;
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, workspaceId },
+        select: { id: true },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
     }
 
     const agent =
@@ -97,8 +132,7 @@ export async function POST(request: Request) {
     const agentRun = await prisma.agentRun.create({
       data: {
         workspaceId,
-        projectId:
-          String(body.projectId ?? "").trim() || null,
+        projectId,
         agent,
         objective:
           String(body.objective ?? "").trim() || null,

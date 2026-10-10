@@ -44,6 +44,8 @@ export async function POST(request: Request) {
           orchestrator.plan.strategy,
         plan: orchestrator.plan.steps,
         steps: orchestrator.steps,
+        observability:
+          orchestrator.observability,
       },
     });
   } catch (error) {

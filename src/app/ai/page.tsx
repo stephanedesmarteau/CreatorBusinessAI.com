@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { evaluateComplexity } from "@/lib/ai/complexity-router";
+import { persistAgentRuns } from "@/lib/ai/agent-run-saver";
 
 export default function AICentralPage() {
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -586,6 +587,18 @@ Important :
   async function saveAgentRuns(
     orchestrator: any
   ) {
+    console.info(
+      "[CreatorBusinessAI] Diagnostic AgentRuns",
+      {
+        orchestratorPresent: Boolean(orchestrator),
+        stepsIsArray: Array.isArray(orchestrator?.steps),
+        stepsCount: Array.isArray(orchestrator?.steps)
+          ? orchestrator.steps.length
+          : 0,
+        projectId,
+      }
+    );
+
     if (!orchestrator?.steps) {
       return;
     }
@@ -595,31 +608,28 @@ Important :
     )
       ? orchestrator.steps
       : [];
-
-    await Promise.allSettled(
-      steps.map((step: any) =>
-        fetch("/api/agent-runs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            agent: step.agent || "unknown",
-            objective: step.objective || "",
-            status:
-              step.status === "failed"
-                ? "FAILED"
-                : "COMPLETED",
-            input: {
-              title: step.title || "",
-            },
-            output: {
-              text: step.output || "",
-            },
-          }),
-        })
-      )
+    const bilan = await persistAgentRuns(
+      steps,
+      projectId
     );
+
+    console.info(
+      "[CreatorBusinessAI] Bilan AgentRuns",
+      {
+        total: bilan.total,
+        successes: bilan.successes,
+        failures: bilan.failures,
+      }
+    );
+
+    bilan.results.forEach((result) => {
+      if (result.status === "rejected") {
+        console.error(
+          "Échec sauvegarde AgentRun:",
+          result.reason
+        );
+      }
+    });
   }
 
   async function updateIntelligentMemory(
@@ -639,6 +649,7 @@ Important :
               "application/json",
           },
           body: JSON.stringify({
+              projectId,
             message: text,
           }),
         }
@@ -672,7 +683,7 @@ Important :
   async function loadIntelligentMemory() {
     try {
       const response = await fetch(
-        "/api/memory-engine"
+        projectId ? `/api/memory-engine?projectId=${encodeURIComponent(projectId)}` : "/api/memory-engine"
       );
 
       const data =
