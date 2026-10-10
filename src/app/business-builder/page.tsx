@@ -1,6 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+type FactoryExecutionResult = {
+  type: string;
+  title: string;
+  status: "completed" | "failed";
+  mission: string;
+  output: string;
+  error?: string;
+  orchestrator?: {
+    observability?: {
+      totalSteps?: number;
+      completedSteps?: number;
+      failedSteps?: number;
+      modelCalls?: number;
+      fallbackCount?: number;
+      modelsUsed?: string[];
+    };
+  };
+};
+
+type FactoryExecution = {
+  projectName: string;
+  status: "completed" | "partial" | "failed";
+  startedAt: string;
+  completedAt: string;
+  totalDeliverables: number;
+  completedDeliverables: number;
+  failedDeliverables: number;
+  results: FactoryExecutionResult[];
+};
 
 
 function FormattedContent({
@@ -85,6 +115,15 @@ export default function BusinessBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState("");
   const [error, setError] = useState("");
+  const [factory, setFactory] = useState<unknown>(null);
+  const [building, setBuilding] = useState(false);
+  const [buildError, setBuildError] = useState("");
+  const [executingFactory, setExecutingFactory] = useState(false);
+  const [factoryExecution, setFactoryExecution] =
+    useState<FactoryExecution | null>(null);
+  const [factoryExecutionError, setFactoryExecutionError] =
+    useState("");
+  const factoryExecutionLockRef = useRef(false);
 
   const scoreMatch = plan.match(/(\d{1,3})\/100/);
   const score = scoreMatch ? Number(scoreMatch[1]) : null;
@@ -133,7 +172,10 @@ export default function BusinessBuilderPage() {
     : [];
 
   const prioritySection = sections.find(
-    (section) => section.title.toLowerCase() === "5 actions prioritaires"
+    (section) =>
+      section.title.toLowerCase().includes(
+        "actions prioritaires"
+      )
   );
 
   const plan30 = sections.find((section) => {
@@ -201,13 +243,130 @@ export default function BusinessBuilderPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function executeFactory() {
+    if (
+      !factory ||
+      executingFactory ||
+      factoryExecutionLockRef.current
+    ) {
+      return;
+    }
+
+    factoryExecutionLockRef.current = true;
+    setExecutingFactory(true);
+    setFactoryExecutionError("");
+    setFactoryExecution(null);
+
+    try {
+      const response = await fetch(
+        "/api/business-factory/execute",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            factory,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible d'exécuter la Business Factory."
+        );
+      }
+
+      if (!data.execution) {
+        throw new Error(
+          "La Business Factory n'a retourné aucune exécution."
+        );
+      }
+
+      setFactoryExecution(
+        data.execution as FactoryExecution
+      );
+    } catch (executionFailure) {
+      setFactoryExecutionError(
+        executionFailure instanceof Error
+          ? executionFailure.message
+          : "Impossible d'exécuter la Business Factory."
+      );
+    } finally {
+      factoryExecutionLockRef.current = false;
+      setExecutingFactory(false);
+    }
+  }
+
+  async function buildFromFactory() {
+    if (!factory || building) {
+      return;
+    }
+
+    setBuilding(true);
+    setBuildError("");
+
+    try {
+      const response = await fetch(
+        "/api/business-factory/build",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            factory,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Impossible de construire le projet."
+        );
+      }
+
+      const newProjectId =
+        String(data.project?.id ?? "").trim();
+
+      if (!newProjectId) {
+        throw new Error(
+          "Le Builder n'a retourné aucun projet."
+        );
+      }
+
+      window.location.href =
+        `/builder?projectId=${encodeURIComponent(
+          newProjectId
+        )}`;
+    } catch (buildFailure) {
+      setBuildError(
+        buildFailure instanceof Error
+          ? buildFailure.message
+          : "Impossible de construire le projet."
+      );
+    } finally {
+      setBuilding(false);
+    }
+  }
+
   async function generatePlan() {
     setLoading(true);
     setError("");
     setPlan("");
+    setFactory(null);
+    setBuildError("");
+    setFactoryExecution(null);
+    setFactoryExecutionError("");
 
     try {
-      const response = await fetch("/api/business-builder", {
+      const response = await fetch("/api/business-factory", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -227,7 +386,141 @@ export default function BusinessBuilderPage() {
         throw new Error(data.error || "Erreur pendant la génération.");
       }
 
-      setPlan(data.plan || "");
+      const factory = data.factory;
+
+      if (!factory) {
+        throw new Error(
+          "La Business Factory n'a retourné aucun résultat."
+        );
+      }
+
+      setFactory(factory);
+
+      const list = (items: unknown) =>
+        Array.isArray(items)
+          ? items.map((item) => `- ${String(item)}`).join("\n")
+          : "";
+
+      const priorities = Array.isArray(
+        factory.execution?.priorities
+      )
+        ? factory.execution.priorities
+            .map(
+              (
+                item: {
+                  title?: string;
+                  description?: string;
+                  timeframe?: string;
+                },
+                index: number
+              ) =>
+                `${index + 1}. ${item.title || "Action"} — ${
+                  item.description || ""
+                } ${
+                  item.timeframe
+                    ? `(${item.timeframe})`
+                    : ""
+                }`
+            )
+            .join("\n")
+        : "";
+
+      const factoryPlan = [
+        "# Résumé exécutif",
+        factory.strategy?.executiveSummary || "",
+        "",
+        "# Problème client à résoudre",
+        factory.strategy?.problem || "",
+        "",
+        "# Clientèle cible",
+        factory.strategy?.targetAudience || "",
+        "",
+        "# Proposition de valeur",
+        factory.strategy?.valueProposition || "",
+        "",
+        "# Positionnement",
+        factory.strategy?.positioning || "",
+        "",
+        "# Avantage concurrentiel",
+        factory.strategy?.competitiveAdvantage || "",
+        "",
+        "# Analyse du marché",
+        factory.market?.opportunity || "",
+        "",
+        "# Analyse de la concurrence",
+        list(factory.market?.competitors),
+        "",
+        "# Hypothèses à valider",
+        list(factory.market?.assumptions),
+        "",
+        "# Plan de validation",
+        list(factory.market?.validationPlan),
+        "",
+        "# Modèle de revenus",
+        factory.businessModel?.revenueModel || "",
+        "",
+        "# Tarification",
+        factory.businessModel?.pricing || "",
+        "",
+        "# Acquisition",
+        factory.businessModel?.acquisition || "",
+        "",
+        "# Ventes",
+        factory.businessModel?.sales || "",
+        "",
+        "# Stratégie marketing",
+        factory.marketing?.message || "",
+        list(factory.marketing?.channels),
+        "",
+        "# Plan de contenu",
+        list(factory.marketing?.contentPlan),
+        "",
+        "# SEO",
+        list(factory.marketing?.seoPlan),
+        "",
+        "# Budget recommandé",
+        factory.finance?.recommendedBudget || "",
+        "",
+        "# Besoins financiers",
+        factory.finance?.fundingNeeds || "",
+        "",
+        "# KPIs à suivre",
+        list(factory.finance?.kpis),
+        "",
+        "# Plan 30 jours",
+        list(factory.execution?.days30),
+        "",
+        "# Plan 60 jours",
+        list(factory.execution?.days60),
+        "",
+        "# Plan 90 jours",
+        list(factory.execution?.days90),
+        "",
+        "# 5 actions prioritaires",
+        priorities,
+        "",
+        "# Principaux risques",
+        list(factory.execution?.risks),
+        "",
+        "# Produit numérique recommandé",
+        factory.digital?.recommendedProduct || "",
+        "",
+        "# Fonctionnalités principales",
+        list(factory.digital?.coreFeatures),
+        "",
+        "# Intégrations",
+        list(factory.digital?.integrations),
+        "",
+        "# Automatisations",
+        list(factory.digital?.automationOpportunities),
+      ]
+        .filter(
+          (value) =>
+            typeof value === "string"
+        )
+        .join("\n");
+
+      setPlan(factoryPlan);
     } catch (err) {
       setError(
         err instanceof Error
@@ -411,14 +704,227 @@ export default function BusinessBuilderPage() {
                     </section>
                   )}
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                     <button
                       onClick={downloadPlan}
                       className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-bold text-white transition hover:bg-white/[0.10]"
                     >
                       Télécharger le plan
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void executeFactory()}
+                      disabled={!factory || executingFactory}
+                      className="rounded-2xl bg-violet-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-violet-500/20 transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {executingFactory
+                        ? "Business Factory en exécution..."
+                        : "Exécuter la Business Factory →"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void buildFromFactory()}
+                      disabled={!factory || building}
+                      className="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {building
+                        ? "Construction en cours..."
+                        : "Construire avec CreatorBusinessAI →"}
+                    </button>
                   </div>
+
+                  {factoryExecutionError && (
+                    <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
+                      {factoryExecutionError}
+                    </div>
+                  )}
+
+                  {executingFactory && (
+                    <section className="rounded-3xl border border-violet-400/30 bg-violet-500/10 p-6">
+                      <p className="text-xs font-bold uppercase tracking-widest text-violet-300">
+                        Business Factory Control Center
+                      </p>
+
+                      <h3 className="mt-2 text-xl font-bold text-white">
+                        Les équipes IA travaillent sur votre entreprise
+                      </h3>
+
+                      <p className="mt-3 text-sm leading-7 text-slate-300">
+                        CreatorBusinessAI répartit actuellement les livrables
+                        entre ses planners, agents spécialisés et moteurs de
+                        synthèse. Cette opération peut prendre plusieurs minutes.
+                      </p>
+
+                      <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full w-2/3 animate-pulse rounded-full bg-violet-400" />
+                      </div>
+                    </section>
+                  )}
+
+                  {factoryExecution && (
+                    <section className="space-y-5 rounded-3xl border border-emerald-400/20 bg-emerald-500/[0.07] p-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+                            Business Factory Control Center
+                          </p>
+
+                          <h3 className="mt-2 text-2xl font-bold text-white">
+                            Exécution multi-agents terminée
+                          </h3>
+
+                          <p className="mt-2 text-sm text-slate-400">
+                            {factoryExecution.projectName}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                          <p className="text-xs uppercase tracking-wider text-slate-500">
+                            Statut
+                          </p>
+                          <p className="mt-1 font-bold text-emerald-300">
+                            {factoryExecution.status}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs uppercase tracking-wider text-slate-500">
+                            Livrables
+                          </p>
+                          <p className="mt-2 text-3xl font-bold text-white">
+                            {factoryExecution.totalDeliverables}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                          <p className="text-xs uppercase tracking-wider text-emerald-300">
+                            Réussis
+                          </p>
+                          <p className="mt-2 text-3xl font-bold text-white">
+                            {factoryExecution.completedDeliverables}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4">
+                          <p className="text-xs uppercase tracking-wider text-red-300">
+                            Échoués
+                          </p>
+                          <p className="mt-2 text-3xl font-bold text-white">
+                            {factoryExecution.failedDeliverables}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {factoryExecution.results.map(
+                          (result, index) => {
+                            const observability =
+                              result.orchestrator?.observability;
+
+                            return (
+                              <details
+                                key={`${result.type}-${index}`}
+                                className="group rounded-2xl border border-white/10 bg-black/20"
+                              >
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider text-blue-300">
+                                      {result.type}
+                                    </p>
+                                    <h4 className="mt-1 font-bold text-white">
+                                      {result.title}
+                                    </h4>
+                                  </div>
+
+                                  <span
+                                    className={
+                                      result.status === "completed"
+                                        ? "rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300"
+                                        : "rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-300"
+                                    }
+                                  >
+                                    {result.status === "completed"
+                                      ? "Terminé"
+                                      : "Échec"}
+                                  </span>
+                                </summary>
+
+                                <div className="border-t border-white/10 p-5">
+                                  {observability && (
+                                    <div className="mb-5 grid gap-3 text-xs sm:grid-cols-4">
+                                      <div className="rounded-xl bg-white/[0.04] p-3">
+                                        <p className="text-slate-500">
+                                          Étapes
+                                        </p>
+                                        <p className="mt-1 font-bold text-white">
+                                          {observability.totalSteps ?? 0}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-xl bg-white/[0.04] p-3">
+                                        <p className="text-slate-500">
+                                          Appels IA
+                                        </p>
+                                        <p className="mt-1 font-bold text-white">
+                                          {observability.modelCalls ?? 0}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-xl bg-white/[0.04] p-3">
+                                        <p className="text-slate-500">
+                                          Fallbacks
+                                        </p>
+                                        <p className="mt-1 font-bold text-white">
+                                          {observability.fallbackCount ?? 0}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-xl bg-white/[0.04] p-3">
+                                        <p className="text-slate-500">
+                                          Modèles
+                                        </p>
+                                        <p className="mt-1 break-words font-bold text-white">
+                                          {observability.modelsUsed?.join(
+                                            ", "
+                                          ) || "—"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {result.error && (
+                                    <div className="mb-4 rounded-xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
+                                      {result.error}
+                                    </div>
+                                  )}
+
+                                  {result.output ? (
+                                    <FormattedContent
+                                      content={result.output}
+                                    />
+                                  ) : (
+                                    <p className="text-sm text-slate-500">
+                                      Aucun résultat disponible.
+                                    </p>
+                                  )}
+                                </div>
+                              </details>
+                            );
+                          }
+                        )}
+                      </div>
+                    </section>
+                  )}
+
+                  {buildError && (
+                    <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
+                      {buildError}
+                    </div>
+                  )}
 
                   {(score !== null || verdict) && (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -542,7 +1048,7 @@ export default function BusinessBuilderPage() {
                         const title = section.title.toLowerCase();
 
                         return (
-                          title !== "5 actions prioritaires" &&
+                          !title.includes("actions prioritaires") &&
                           title !== "plan 30 jours" &&
                           title !== "30 jours" &&
                           title !== "plan 60 jours" &&

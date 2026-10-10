@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     const response = await client.responses.create({
-      model: "gpt-5.6",
+      model: getAIModel("businessDefault").id,
       reasoning: {
         effort: "low",
       },
