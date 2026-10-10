@@ -1,13 +1,9 @@
-import OpenAI from "openai";
 import type {
   OrchestratorAgent,
   OrchestratorPlan,
   OrchestratorStep,
 } from "./types";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { runRoutedResponse } from "./model-router";
 
 const allowedAgents: OrchestratorAgent[] = [
   "business",
@@ -39,7 +35,7 @@ function normalizeSteps(rawSteps: unknown): OrchestratorStep[] {
     return [];
   }
 
-  return rawSteps.slice(0, 4).map((raw, index) => {
+  return rawSteps.slice(0, 8).map((raw, index) => {
     const item =
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>)
@@ -228,11 +224,14 @@ export async function createOrchestratorPlan(
     throw new Error("La clé API OpenAI est manquante.");
   }
 
-  const response = await client.responses.create({
-    model: "gpt-5.6-luna",
-    reasoning: {
-      effort: "low",
-    },
+  const { response, trace } =
+    await runRoutedResponse(
+      "planner",
+      "low",
+      {
+        reasoning: {
+          effort: "low",
+        },
     input: [
       {
         role: "developer",
@@ -247,7 +246,7 @@ code
 marketing
 general
 
-Crée entre 2 et 4 étapes maximum.
+Crée entre 2 et 8 étapes selon la complexité de la mission.
 
 Tu peux créer deux types de plan :
 
@@ -295,8 +294,9 @@ Format :
         role: "user",
         content: mission,
       },
-    ],
-  });
+        ],
+      }
+    );
 
   try {
     const parsed = extractJson(response.output_text);
@@ -326,6 +326,7 @@ Format :
       mission,
       strategy,
       steps,
+      modelTrace: trace,
     };
   } catch (error) {
     console.error("Planner fallback:", error);
@@ -333,6 +334,7 @@ Format :
     return {
       mission,
       strategy: "Analyse parallèle CreatorBusinessAI.",
+      modelTrace: trace,
       steps: [
         {
           id: "step-1",

@@ -1,12 +1,8 @@
-import OpenAI from "openai";
 import type {
   OrchestratorPlan,
   OrchestratorStepResult,
 } from "./types";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { runRoutedResponse } from "./model-router";
 
 export async function synthesizeOrchestratorResult(
   plan: OrchestratorPlan,
@@ -24,11 +20,14 @@ ${step.output}
     )
     .join("\n\n");
 
-  const response = await client.responses.create({
-    model: "gpt-5.6-terra",
-    reasoning: {
-      effort: "low",
-    },
+  const { response, trace } =
+    await runRoutedResponse(
+      "synthesizer",
+      "high",
+      {
+        reasoning: {
+          effort: "low",
+        },
     max_output_tokens: 4000,
     input: [
       {
@@ -72,9 +71,13 @@ ${content}
 
 Produis maintenant la réponse finale CreatorBusinessAI Super AI.
         `.trim(),
-      },
-    ],
-  });
+          },
+        ],
+      }
+    );
 
-  return response.output_text;
+  return {
+    text: response.output_text,
+    modelTrace: trace,
+  };
 }
