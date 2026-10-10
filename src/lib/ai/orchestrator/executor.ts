@@ -1,23 +1,12 @@
-import OpenAI from "openai";
 import { agentInstructions } from "@/lib/ai/agents";
 import { researchWeb } from "@/lib/ai/research-engine";
+import { runRoutedResponse } from "./model-router";
 import type {
   OrchestratorAgent,
   OrchestratorPlan,
   OrchestratorStep,
   OrchestratorStepResult,
 } from "./types";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-function getModel(agent: OrchestratorAgent) {
-  return ["business", "code"].includes(agent)
-    ? "gpt-5.6-sol"
-    : "gpt-5.6-terra";
-}
-
 
 function compactDependencyOutput(
   output: string,
@@ -74,6 +63,7 @@ Produis une synthèse exploitable par les autres agents.
       agent: step.agent,
       objective: step.objective,
       status: "completed",
+      engine: "research-web",
       output: `
 ${research.text}
 
@@ -93,6 +83,7 @@ ${sourcesText}
       agent: step.agent,
       objective: step.objective,
       status: "failed",
+      engine: "research-web",
       output:
         error instanceof Error
           ? error.message
@@ -106,11 +97,20 @@ async function executeStandardStep(
   step: OrchestratorStep
 ): Promise<OrchestratorStepResult> {
   try {
-    const response = await client.responses.create({
-      model: getModel(step.agent),
-      reasoning: {
-        effort: "low",
-      },
+    const complexity =
+      step.agent === "business" ||
+      step.agent === "code"
+        ? "high"
+        : "medium";
+
+    const { response, trace } =
+      await runRoutedResponse(
+        step.agent,
+        complexity,
+        {
+          reasoning: {
+            effort: "low",
+          },
       max_output_tokens: 3000,
       input: [
         {
@@ -152,8 +152,9 @@ ${step.objective}
 Produis ton analyse spécialisée.
           `.trim(),
         },
-      ],
-    });
+          ],
+        }
+      );
 
     return {
       id: step.id,
@@ -161,6 +162,8 @@ Produis ton analyse spécialisée.
       agent: step.agent,
       objective: step.objective,
       status: "completed",
+      engine: "model-router",
+      modelTrace: trace,
       output:
         response.output_text ||
         "Étape terminée sans contenu textuel.",
@@ -177,6 +180,7 @@ Produis ton analyse spécialisée.
       agent: step.agent,
       objective: step.objective,
       status: "failed",
+      engine: "model-router",
       output:
         error instanceof Error
           ? error.message
@@ -202,8 +206,14 @@ async function executeStep(
   );
 }
 
+export type OrchestratorStepRunner = (
+  mission: string,
+  step: OrchestratorStep
+) => Promise<OrchestratorStepResult>;
+
 export async function executeOrchestratorPlan(
-  plan: OrchestratorPlan
+  plan: OrchestratorPlan,
+  runner: OrchestratorStepRunner = executeStep
 ): Promise<OrchestratorStepResult[]> {
   const pending = new Map(
     plan.steps.map((step) => [
@@ -218,15 +228,41 @@ export async function executeOrchestratorPlan(
   >();
 
   while (pending.size > 0) {
+    // Propager les échecs dans les chaînes de dépendances.
+    let blockedAny = false;
+
+    for (const step of Array.from(pending.values())) {
+      const failedDependency = step.dependsOn.find(
+        (id) => results.get(id)?.status === "failed"
+      );
+
+      if (failedDependency) {
+        results.set(step.id, {
+          id: step.id,
+          title: step.title,
+          agent: step.agent,
+          objective: step.objective,
+          status: "failed",
+          output: `Étape bloquée : dépendance ${failedDependency} échouée.`,
+        });
+        pending.delete(step.id);
+        blockedAny = true;
+      }
+    }
+
+    if (pending.size === 0) break;
+
     const ready = Array.from(
       pending.values()
     ).filter((step) =>
       step.dependsOn.every((dependencyId) =>
-        results.has(dependencyId)
+        results.get(dependencyId)?.status === "completed"
       )
     );
 
     if (ready.length === 0) {
+      if (blockedAny) continue;
+
       const blocked = Array.from(
         pending.values()
       ).map((step) => ({
@@ -241,8 +277,13 @@ export async function executeOrchestratorPlan(
       );
     }
 
-    const waveResults = await Promise.all(
-      ready.map(async (step) => {
+    const waveResults: OrchestratorStepResult[] = [];
+
+    for (let offset = 0; offset < ready.length; offset += 3) {
+      const batch = ready.slice(offset, offset + 3);
+
+      const batchResults = await Promise.all(
+      batch.map(async (step) => {
         const dependencyContext =
           step.dependsOn.length > 0
             ? step.dependsOn
@@ -284,12 +325,24 @@ Ne les répète pas inutilement.
               }
             : step;
 
-        return executeStep(
+        const startedAt = performance.now();
+
+        const result = await runner(
           plan.mission,
           enrichedStep
         );
+
+        return {
+          ...result,
+          durationMs: Math.round(
+            performance.now() - startedAt
+          ),
+        };
       })
-    );
+      );
+
+      waveResults.push(...batchResults);
+    }
 
     for (const result of waveResults) {
       results.set(result.id, result);
