@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { getAIModel } from "@/lib/ai/providers";
 import {
   agentInstructions,
   type AIRoute,
@@ -46,7 +47,10 @@ export async function POST(request: Request) {
     const imageQuality = String(body.imageQuality ?? "medium");
     const videoSize = String(body.videoSize ?? "1280x720") as VideoSize;
     const videoSeconds = String(body.videoSeconds ?? "8") as VideoSeconds;
-    const videoModel = String(body.videoModel ?? "sora-2") as
+    const videoModel = String(
+      body.videoModel ??
+        getAIModel("video").id
+    ) as
       | "sora-2"
       | "sora-2-pro";
     const voiceName = String(body.voiceName ?? "cedar") as VoiceName;
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const response = await client.responses.create({
-      model: "gpt-5.6-luna",
+      model: getAIModel("fast").id,
       reasoning: {
         effort: "low",
       },
@@ -175,7 +179,9 @@ Réponds uniquement avec le nom exact de la catégorie.
     }
 
     const useSol = ["business", "code", "research"].includes(route);
-    const agentModel = useSol ? "gpt-5.6-sol" : "gpt-5.6-terra";
+    const agentModel = useSol
+      ? getAIModel("powerful").id
+      : getAIModel("balanced").id;
     const reasoningEffort = useSol ? "medium" : "low";
 
     const agentResponse = await client.responses.create({

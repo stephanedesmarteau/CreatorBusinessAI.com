@@ -1,5 +1,6 @@
 import OpenAI, { toFile } from "openai";
 import { NextResponse } from "next/server";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const response = await client.images.edit({
-      model: "gpt-image-2",
+      model: getAIModel("image").id,
       image: upload,
       ...(maskUpload ? { mask: maskUpload } : {}),
       prompt,

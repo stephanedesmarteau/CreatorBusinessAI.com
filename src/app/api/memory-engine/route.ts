@@ -1,14 +1,47 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 import {
   formatRelevantMemories,
   getRelevantMemories,
   persistMemories,
 } from "@/lib/ai/memory-engine";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("projectId");
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId: workspace.id,
+        },
+        select: { id: true },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
+    }
+
     const memories =
       await getRelevantMemories({
+        workspaceId: workspace.id,
+        projectId,
         limit: 30,
       });
 
@@ -36,8 +69,39 @@ export async function POST(
   request: Request
 ) {
   try {
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
     const body =
       await request.json();
+
+    const projectId =
+      String(body.projectId ?? "").trim() || null;
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId: workspace.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
+    }
 
     const message = String(
       body.message ?? ""
@@ -55,11 +119,17 @@ export async function POST(
 
     const memories =
       await persistMemories(
-        message
+        message,
+        {
+          workspaceId: workspace.id,
+          projectId,
+        }
       );
 
     const context =
       await formatRelevantMemories({
+        workspaceId: workspace.id,
+        projectId,
         limit: 20,
       });
 

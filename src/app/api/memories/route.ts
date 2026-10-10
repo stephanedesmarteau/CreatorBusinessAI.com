@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { MemoryType } from "@/generated/prisma/enums";
-import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 const allowedTypes = new Set([
   "FACT",
@@ -13,19 +13,30 @@ const allowedTypes = new Set([
 
 export async function GET(request: Request) {
   try {
+    const workspace = await getOrCreateUserWorkspace();
+    if (!workspace) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
     const { searchParams } = new URL(request.url);
-
-    let workspaceId =
-      searchParams.get("workspaceId");
 
     const projectId =
       searchParams.get("projectId");
 
-    if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
+    const workspaceId = workspace.id;
 
-      workspaceId = workspace.id;
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId,
+        },
+        select: { id: true },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
     }
 
     const memories = await prisma.memory.findMany({
@@ -60,15 +71,35 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const workspace = await getOrCreateUserWorkspace();
 
-    let workspaceId =
-      String(body.workspaceId ?? "").trim();
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
 
-    if (!workspaceId) {
-      const workspace =
-        await getOrCreateDefaultWorkspace();
+    const workspaceId = workspace.id;
 
-      workspaceId = workspace.id;
+    const projectId =
+      String(body.projectId ?? "").trim() || null;
+
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId,
+        },
+        select: { id: true },
+      });
+
+      if (!project) {
+        return NextResponse.json(
+          { error: "Projet introuvable ou accès interdit." },
+          { status: 403 }
+        );
+      }
     }
 
     const content =
@@ -106,8 +137,7 @@ export async function POST(request: Request) {
     const memory = await prisma.memory.create({
       data: {
         workspaceId,
-        projectId:
-          String(body.projectId ?? "").trim() || null,
+        projectId,
         type: rawType as MemoryType,
         key:
           String(body.key ?? "").trim() || null,

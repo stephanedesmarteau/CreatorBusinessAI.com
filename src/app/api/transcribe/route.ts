@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     const transcription = await client.audio.transcriptions.create({
-      model: "gpt-4o-transcribe",
+      model: getAIModel("transcription").id,
       file: audio,
     });
 
