@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -32,7 +33,7 @@ export async function generateVoice(
   }
 
   const speech = await client.audio.speech.create({
-    model: "gpt-4o-mini-tts-2025-12-15",
+    model: getAIModel("voice").id,
     voice,
     input: text,
     response_format: "mp3",

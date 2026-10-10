@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAIModel } from "@/lib/ai/providers";
 import { prisma } from "@/lib/db/prisma";
 import { MemoryType } from "@/generated/prisma/enums";
 import { getOrCreateDefaultWorkspace } from "@/lib/db/default-workspace";
@@ -116,7 +117,7 @@ export async function extractMemoriesFromMessage(
 
   const response =
     await client.responses.create({
-      model: "gpt-5.6-luna",
+      model: getAIModel("fast").id,
       reasoning: {
         effort: "low",
       },

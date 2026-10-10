@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,7 +15,7 @@ export async function generateImage(
   }
 
   const result = await client.images.generate({
-    model: "gpt-image-2",
+    model: getAIModel("image").id,
     prompt,
     size: size as "1024x1024" | "1536x1024" | "1024x1536",
     quality: quality as "low" | "medium" | "high",
