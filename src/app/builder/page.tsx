@@ -2153,7 +2153,15 @@ ${issueText}
                           {!validationReport.valid && (
                             <button
                               type="button"
-                              onClick={() => void repairValidationIssues()}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    "Autorisez-vous une réparation IA du projet ? Cette opération peut consommer des crédits OpenAI."
+                                  )
+                                ) {
+                                  void repairValidationIssues();
+                                }
+                              }}
                               disabled={repairingProject}
                               className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -2277,7 +2285,15 @@ ${issueText}
                           {!realBuildReport.success && (
                             <button
                               type="button"
-                              onClick={() => void repairRealBuild()}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    "Autorisez-vous une réparation IA des erreurs de compilation ? Cette opération peut consommer des crédits OpenAI."
+                                  )
+                                ) {
+                                  void repairRealBuild();
+                                }
+                              }}
                               disabled={repairingBuild}
                               className="mt-4 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                             >
