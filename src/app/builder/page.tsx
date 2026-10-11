@@ -1111,6 +1111,44 @@ ${issueText}
     const isAnalysisHandoff =
       handoff === "analysis";
 
+    if (handoff === "super-ai") {
+      try {
+        const raw = sessionStorage.getItem(
+          "creatorbusinessai:super-ai-handoff"
+        );
+
+        if (raw) {
+          const payload = JSON.parse(raw);
+
+          if (
+            payload &&
+            payload.version === 1 &&
+            typeof payload.prompt === "string" &&
+            payload.prompt.trim().length > 0 &&
+            payload.prompt.length <= 30000 &&
+            payload.projectId === projectId
+          ) {
+            setPrompt(payload.prompt);
+            sessionStorage.removeItem(
+              "creatorbusinessai:super-ai-handoff"
+            );
+          } else {
+            setError(
+              "Le transfert Super AI est invalide ou expiré."
+            );
+          }
+        } else {
+          setError(
+            "Aucune mission Super AI à récupérer."
+          );
+        }
+      } catch {
+        setError(
+          "Impossible de récupérer la mission Super AI."
+        );
+      }
+    }
+
     setAnalysisHandoff(isAnalysisHandoff);
     setParentProjectId(
       isAnalysisHandoff ? null : projectId
