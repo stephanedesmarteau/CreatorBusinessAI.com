@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAIModel } from "@/lib/ai/providers";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,9 +25,20 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const file = await prisma.fileAsset.findUnique({
+    const workspace =
+      await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    const file = await prisma.fileAsset.findFirst({
       where: {
         id: fileId,
+        workspaceId: workspace.id,
       },
     });
 
