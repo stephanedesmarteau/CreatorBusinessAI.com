@@ -493,6 +493,12 @@ export async function deployToVercelProduction(
   workspaceId: string,
   deploymentId: string
 ): Promise<VercelProductionResult> {
+  if (process.env.CREATORBUSINESSAI_VERCEL_PRODUCTION_ENABLED !== "true") {
+    throw new Error(
+      "Déploiement Vercel en production désactivé : vérification de sécurité requise."
+    );
+  }
+
   const deployment =
     await getDeployment(
       workspaceId,
@@ -699,6 +705,12 @@ export async function rollbackVercelProduction(
   workspaceId: string,
   deploymentId: string
 ): Promise<VercelProductionResult> {
+  if (process.env.CREATORBUSINESSAI_VERCEL_PRODUCTION_ENABLED !== "true") {
+    throw new Error(
+      "Déploiement Vercel en production désactivé : vérification de sécurité requise."
+    );
+  }
+
   const {
     deployment,
     targetDeployment,
