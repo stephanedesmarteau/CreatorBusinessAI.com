@@ -1188,64 +1188,26 @@ ${issueText}
   async function runAutonomousBuilder(
     projectId: string
   ) {
-    const maxValidationRepairs = 2;
-    const maxBuildRepairs = 2;
+    const validation =
+      await validateProject(projectId);
 
-    let validation =
-      await validateProject(
-        projectId
-      );
-
-    for (
-      let attempt = 0;
-      validation &&
-      !validation.valid &&
-      attempt < maxValidationRepairs;
-      attempt += 1
-    ) {
-      validation =
-        await repairValidationIssues(
-          projectId,
-          validation
-        );
-    }
-
-    if (
-      !validation ||
-      !validation.valid
-    ) {
-      setError(
-        "Le projet n'a pas pu être validé automatiquement après les tentatives de réparation."
-      );
-
+    if (!validation) {
       return;
     }
 
-    let build =
-      await runRealBuild(
-        projectId
+    if (!validation.valid) {
+      setError(
+        "Validation échouée. Une autorisation explicite est requise avant toute réparation IA."
       );
-
-    for (
-      let attempt = 0;
-      build &&
-      !build.success &&
-      attempt < maxBuildRepairs;
-      attempt += 1
-    ) {
-      build =
-        await repairRealBuild(
-          projectId,
-          build
-        );
+      return;
     }
 
-    if (
-      !build ||
-      !build.success
-    ) {
+    const build =
+      await runRealBuild(projectId);
+
+    if (build && !build.success) {
       setError(
-        "Le projet n'a pas pu être compilé automatiquement après les tentatives de réparation."
+        "Compilation échouée. Une autorisation explicite est requise avant toute réparation IA."
       );
     }
   }
