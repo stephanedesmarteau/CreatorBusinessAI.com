@@ -1900,7 +1900,15 @@ ${issueText}
 
                       <button
                         type="button"
-                        onClick={editWholeProject}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Autorisez-vous la modification IA du projet complet ? Cette opération peut consommer des crédits OpenAI."
+                            )
+                          ) {
+                            void editWholeProject();
+                          }
+                        }}
                         disabled={
                           editingProject ||
                           !projectInstruction.trim()
@@ -2592,7 +2600,15 @@ ${issueText}
 
                         <button
                           type="button"
-                          onClick={editSelectedFile}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                "Autorisez-vous la modification IA de ce fichier ? Cette opération peut consommer des crédits OpenAI."
+                              )
+                            ) {
+                              void editSelectedFile();
+                            }
+                          }}
                           disabled={
                             editingFile ||
                             !editInstruction.trim()
