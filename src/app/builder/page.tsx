@@ -509,6 +509,7 @@ ${buildLogs}
               "application/json",
           },
           body: JSON.stringify({
+            operationType: "build-repair",
             projectId:
               id,
             instruction,
@@ -752,6 +753,7 @@ ${issueText}
               "application/json",
           },
           body: JSON.stringify({
+            operationType: "validation-repair",
             projectId:
               id,
             instruction,
@@ -1461,6 +1463,7 @@ ${issueText}
               "application/json",
           },
           body: JSON.stringify({
+            operationType: "manual-edit",
             projectId: project.id,
             instruction:
               projectInstruction.trim(),
