@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ProductionControlCenter from "@/components/ProductionControlCenter";
 
 type BuilderFile = {
@@ -162,6 +162,8 @@ export default function BuilderPage() {
 
   const [repairAttemptsByProject, setRepairAttemptsByProject] =
     useState<Record<string, number>>({});
+
+  const repairLockRef = useRef(false);
 
   const [runtimeStatus, setRuntimeStatus] =
     useState<RuntimeStatus | null>(null);
@@ -427,6 +429,12 @@ export default function BuilderPage() {
       return null;
     }
 
+    if (repairLockRef.current) {
+      setError("Une réparation IA est déjà en cours.");
+      return null;
+    }
+
+    repairLockRef.current = true;
     setRepairingBuild(true);
     setError("");
 
@@ -577,6 +585,7 @@ ${buildLogs}
 
       return null;
     } finally {
+      repairLockRef.current = false;
       setRepairingBuild(false);
     }
   }
@@ -662,6 +671,12 @@ ${buildLogs}
       return null;
     }
 
+    if (repairLockRef.current) {
+      setError("Une réparation IA est déjà en cours.");
+      return null;
+    }
+
+    repairLockRef.current = true;
     setRepairingProject(true);
     setError("");
 
@@ -795,6 +810,7 @@ ${issueText}
 
       return null;
     } finally {
+      repairLockRef.current = false;
       setRepairingProject(false);
     }
   }
