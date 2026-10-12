@@ -160,6 +160,9 @@ export default function BuilderPage() {
   const [repairingBuild, setRepairingBuild] =
     useState(false);
 
+  const [repairAttemptsByProject, setRepairAttemptsByProject] =
+    useState<Record<string, number>>({});
+
   const [runtimeStatus, setRuntimeStatus] =
     useState<RuntimeStatus | null>(null);
 
