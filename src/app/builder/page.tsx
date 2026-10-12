@@ -165,6 +165,31 @@ export default function BuilderPage() {
 
   const repairLockRef = useRef(false);
 
+  const repairAttemptsRef =
+    useRef<Record<string, number>>({});
+
+  function reserveRepairAttempt(projectId: string): boolean {
+    const used = repairAttemptsRef.current[projectId] ?? 0;
+
+    if (used >= 2) {
+      setError(
+        "Limite de deux réparations IA atteinte pour ce projet."
+      );
+      return false;
+    }
+
+    const next = used + 1;
+
+    repairAttemptsRef.current[projectId] = next;
+
+    setRepairAttemptsByProject((current) => ({
+      ...current,
+      [projectId]: next,
+    }));
+
+    return true;
+  }
+
   const [runtimeStatus, setRuntimeStatus] =
     useState<RuntimeStatus | null>(null);
 
@@ -434,6 +459,10 @@ export default function BuilderPage() {
       return null;
     }
 
+    if (!reserveRepairAttempt(id)) {
+      return null;
+    }
+
     repairLockRef.current = true;
     setRepairingBuild(true);
     setError("");
@@ -673,6 +702,10 @@ ${buildLogs}
 
     if (repairLockRef.current) {
       setError("Une réparation IA est déjà en cours.");
+      return null;
+    }
+
+    if (!reserveRepairAttempt(id)) {
       return null;
     }
 
