@@ -5,12 +5,21 @@ import {
   editBuilderProject,
   type ProjectEditorFile,
 } from "@/lib/ai/builder-project-editor";
+import {
+  BUILDER_REPAIR_LIMIT,
+  canReserveRepair,
+  isBuilderOperationType,
+  isRepairOperation,
+} from "@/lib/ai/builder-operation-policy";
 
 export const maxDuration = 300;
 
 export async function PATCH(
   request: Request
 ) {
+  let operationId: string | null =
+    null;
+
   try {
     const body =
       await request.json();
@@ -24,6 +33,9 @@ export async function PATCH(
       String(
         body.instruction ?? ""
       ).trim();
+
+    const operationType =
+      body.operationType;
 
     if (
       !projectId ||
@@ -76,6 +88,20 @@ export async function PATCH(
       );
     }
 
+    if (
+      !isBuilderOperationType(
+        operationType
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Type d'opération Builder invalide.",
+        },
+        { status: 400 }
+      );
+    }
+
     const currentFiles: ProjectEditorFile[] =
       project.files
         .map((file) => {
@@ -112,6 +138,58 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    if (
+      isRepairOperation(
+        operationType
+      )
+    ) {
+      const attemptsUsed =
+        await prisma.builderAiOperation.count({
+          where: {
+            workspaceId:
+              workspace.id,
+            projectId:
+              project.id,
+            operationType: {
+              in: [
+                "build-repair",
+                "validation-repair",
+              ],
+            },
+          },
+        });
+
+      if (
+        !canReserveRepair(
+          attemptsUsed
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              `Limite de ${BUILDER_REPAIR_LIMIT} réparations IA atteinte pour ce projet.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const operation =
+      await prisma.builderAiOperation.create({
+        data: {
+          workspaceId:
+            workspace.id,
+          projectId:
+            project.id,
+          operationType,
+          status:
+            "RESERVED",
+        },
+      });
+
+    operationId =
+      operation.id;
 
     const result =
       await editBuilderProject(
@@ -259,6 +337,16 @@ export async function PATCH(
         }
       ) ?? [];
 
+    await prisma.builderAiOperation.update({
+      where: {
+        id: operation.id,
+      },
+      data: {
+        status:
+          "COMPLETED",
+      },
+    });
+
     return NextResponse.json({
       success: true,
       projectId:
@@ -274,6 +362,27 @@ export async function PATCH(
       files,
     });
   } catch (error) {
+    if (operationId) {
+      try {
+        await prisma.builderAiOperation.updateMany({
+          where: {
+            id: operationId,
+            status:
+              "RESERVED",
+          },
+          data: {
+            status:
+              "FAILED",
+          },
+        });
+      } catch (operationError) {
+        console.error(
+          "Erreur statut opération Builder:",
+          operationError
+        );
+      }
+    }
+
     console.error(
       "Erreur Builder Project Editor:",
       error
