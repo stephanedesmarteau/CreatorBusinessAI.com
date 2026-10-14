@@ -139,54 +139,112 @@ export async function PATCH(
       );
     }
 
-    if (
-      isRepairOperation(
-        operationType
-      )
-    ) {
-      const attemptsUsed =
-        await prisma.builderAiOperation.count({
-          where: {
-            workspaceId:
-              workspace.id,
-            projectId:
-              project.id,
-            operationType: {
-              in: [
-                "build-repair",
-                "validation-repair",
-              ],
-            },
-          },
-        });
+    let operation;
 
-      if (
-        !canReserveRepair(
-          attemptsUsed
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              `Limite de ${BUILDER_REPAIR_LIMIT} réparations IA atteinte pour ce projet.`,
-          },
-          { status: 409 }
-        );
+    for (
+      let transactionAttempt = 0;
+      transactionAttempt < 3;
+      transactionAttempt += 1
+    ) {
+      try {
+        operation =
+          await prisma.$transaction(
+            async (tx) => {
+              if (
+                isRepairOperation(
+                  operationType
+                )
+              ) {
+                const attemptsUsed =
+                  await tx.builderAiOperation.count({
+                    where: {
+                      workspaceId:
+                        workspace.id,
+                      projectId:
+                        project.id,
+                      operationType: {
+                        in: [
+                          "build-repair",
+                          "validation-repair",
+                        ],
+                      },
+                    },
+                  });
+
+                if (
+                  !canReserveRepair(
+                    attemptsUsed
+                  )
+                ) {
+                  throw new Error(
+                    "BUILDER_REPAIR_LIMIT_REACHED"
+                  );
+                }
+              }
+
+              return tx.builderAiOperation.create({
+                data: {
+                  workspaceId:
+                    workspace.id,
+                  projectId:
+                    project.id,
+                  operationType,
+                  status:
+                    "RESERVED",
+                },
+              });
+            },
+            {
+              isolationLevel:
+                "Serializable",
+            }
+          );
+
+        break;
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message ===
+            "BUILDER_REPAIR_LIMIT_REACHED"
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                `Limite de ${BUILDER_REPAIR_LIMIT} réparations IA atteinte pour ce projet.`,
+            },
+            { status: 409 }
+          );
+        }
+
+        const code =
+          error &&
+          typeof error === "object" &&
+          "code" in error
+            ? String(
+                (
+                  error as {
+                    code?: unknown;
+                  }
+                ).code ?? ""
+              )
+            : "";
+
+        if (
+          code === "P2034" &&
+          transactionAttempt < 2
+        ) {
+          continue;
+        }
+
+        throw error;
       }
     }
 
-    const operation =
-      await prisma.builderAiOperation.create({
-        data: {
-          workspaceId:
-            workspace.id,
-          projectId:
-            project.id,
-          operationType,
-          status:
-            "RESERVED",
-        },
-      });
+    if (!operation) {
+      throw new Error(
+        "Impossible de réserver l'opération Builder."
+      );
+    }
 
     operationId =
       operation.id;
