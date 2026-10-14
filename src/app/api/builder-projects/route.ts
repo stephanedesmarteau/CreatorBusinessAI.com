@@ -37,6 +37,19 @@ export async function GET() {
               name: "asc",
             },
           },
+          builderAiOperations: {
+            where: {
+              operationType: {
+                in: [
+                  "build-repair",
+                  "validation-repair",
+                ],
+              },
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -49,6 +62,8 @@ export async function GET() {
             project.description,
           createdAt:
             project.createdAt,
+          repairAttemptsUsed:
+            project.builderAiOperations.length,
           files:
             project.files.map(
               (file) => {

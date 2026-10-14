@@ -21,6 +21,7 @@ type SavedProject = {
   name: string;
   description?: string | null;
   createdAt?: string;
+  repairAttemptsUsed?: number;
   files: Array<{
     id: string;
     path: string;
@@ -1143,10 +1144,34 @@ ${issueText}
         );
       }
 
-      setSavedProjects(
+      const projects: SavedProject[] =
         Array.isArray(data.projects)
           ? data.projects
-          : []
+          : [];
+
+      setSavedProjects(
+        projects
+      );
+
+      const persistentRepairAttempts =
+        Object.fromEntries(
+          projects.map(
+            (saved) => [
+              saved.id,
+              Number.isInteger(
+                saved.repairAttemptsUsed
+              )
+                ? saved.repairAttemptsUsed ?? 0
+                : 0,
+            ]
+          )
+        );
+
+      repairAttemptsRef.current =
+        persistentRepairAttempts;
+
+      setRepairAttemptsByProject(
+        persistentRepairAttempts
       );
     } catch (error) {
       console.error(
