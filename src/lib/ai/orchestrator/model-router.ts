@@ -18,11 +18,16 @@ import {
   type AIModelTier,
 } from "./model-registry";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  maxRetries: 0,
-  timeout: 60000,
-});
+function createOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    maxRetries: 0,
+    timeout: 60000,
+  });
+}
+
+type OpenAIClient =
+  ReturnType<typeof createOpenAIClient>;
 
 export type AIComplexity =
   | "low"
@@ -48,7 +53,7 @@ export type ModelExecutionTrace = {
 
 type NonStreamingResponse =
   Awaited<
-    ReturnType<typeof client.responses.create>
+    ReturnType<OpenAIClient["responses"]["create"]>
   > extends infer Result
     ? Result extends { output_text: string }
       ? Result
@@ -159,11 +164,13 @@ export async function runRoutedResponse(
   complexity: AIComplexity,
   request: Omit<
     Parameters<
-      typeof client.responses.create
+      OpenAIClient["responses"]["create"]
     >[0],
     "model"
   >
 ): Promise<RoutedModelResponse> {
+  const client = createOpenAIClient();
+
   const primary =
     selectPrimaryModel(
       role,

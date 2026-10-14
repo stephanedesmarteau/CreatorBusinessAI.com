@@ -1,10 +1,6 @@
 import OpenAI from "openai";
 import { getAIModel } from "@/lib/ai/providers";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export type ResearchSource = {
   title: string;
   url: string;
@@ -54,6 +50,10 @@ export async function researchWeb(
       "La clé API OpenAI est manquante."
     );
   }
+
+  const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   const cleanQuery = query.trim();
 
