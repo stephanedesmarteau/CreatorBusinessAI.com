@@ -1,0 +1,93 @@
+@reference "../globals.css";
+
+@theme {
+  --color-ink: #111827;
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-500: #7c3aed;
+  --color-brand-600: #6d28d9;
+  --color-brand-700: #5b21b6;
+  --color-mint: #36c9a3;
+  --shadow-glow: 0 20px 70px -25px rgba(124, 58, 237, 0.55);
+  --shadow-soft: 0 20px 60px rgba(38, 32, 74, 0.10);
+}
+
+@layer components {
+  .studio-nova {
+    color-scheme: light;
+    color: #111827;
+    background: #ffffff;
+    min-height: 100vh;
+  }
+
+  .studio-nova .container-page {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .studio-nova .container-page {
+      padding-inline: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .studio-nova .container-page {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  .studio-nova .button-primary {
+    @apply inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition;
+    background-color: #6d28d9;
+  }
+
+  .studio-nova .button-primary:hover {
+    background-color: #5b21b6;
+  }
+
+  .studio-nova .button-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-ink transition hover:border-brand-500;
+  }
+
+  .studio-nova .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .studio-nova .label {
+    @apply mb-2 block text-sm font-semibold text-ink;
+  }
+
+  .studio-nova .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-brand-500;
+  }
+}
+
+
+/* STUDIO_NOVA_COLORS */
+.studio-nova .bg-brand-600 {
+  background-color: #6d28d9;
+}
+.studio-nova .bg-brand-50 {
+  background-color: #f5f3ff;
+}
+.studio-nova .bg-brand-100 {
+  background-color: #ede9fe;
+}
+.studio-nova .text-brand-600 {
+  color: #6d28d9;
+}
+.studio-nova .text-brand-700 {
+  color: #5b21b6;
+}
+.studio-nova .text-muted {
+  color: #64748b;
+}
+.studio-nova .hover\:text-brand-700:hover {
+  color: #5b21b6;
+}
+.studio-nova .hover\:bg-brand-700:hover {
+  background-color: #5b21b6;
+}
