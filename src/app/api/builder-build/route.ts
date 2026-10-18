@@ -6,6 +6,7 @@ import {
   takeCachedBuilderBuild,
 } from "@/lib/ai/builder-build-runner";
 import { startRuntime } from "@/lib/ai/builder-runtime";
+import { applyCreatorBusinessTestPreset } from "@/lib/ai/builder-presets/creatorbusinessai-test";
 
 export const maxDuration = 300;
 
@@ -45,9 +46,10 @@ export async function POST(
             where: {
               status: "READY",
             },
-            orderBy: {
-              name: "asc",
-            },
+            orderBy: [
+              { createdAt: "asc" },
+              { id: "asc" },
+            ],
           },
         },
       });
@@ -62,8 +64,19 @@ export async function POST(
       );
     }
 
+    const selectedFiles = new Map<
+      string,
+      (typeof project.files)[number]
+    >();
+
+    for (const file of project.files) {
+      if (!selectedFiles.has(file.name)) {
+        selectedFiles.set(file.name, file);
+      }
+    }
+
     const files =
-      project.files
+      [...selectedFiles.values()]
         .map((file) => {
           const metadata =
             file.metadata &&
@@ -103,10 +116,37 @@ export async function POST(
       );
     }
 
+    const seenPaths = new Set<string>();
+    const duplicatePaths = new Set<string>();
+
+    for (const file of files) {
+      if (seenPaths.has(file.path)) {
+        duplicatePaths.add(file.path);
+      }
+      seenPaths.add(file.path);
+    }
+
+    if (duplicatePaths.size > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Compilation bloquée : fichiers dupliqués détectés.",
+          duplicatePaths: [...duplicatePaths].sort(),
+        },
+        { status: 409 }
+      );
+    }
+
+    const buildFiles =
+      await applyCreatorBusinessTestPreset(
+        projectId,
+        files
+      );
+
     const result =
       await runBuilderBuild(
         projectId,
-        files
+        buildFiles
       );
 
     let runtime = null;
@@ -120,7 +160,7 @@ export async function POST(
       runtime =
         await startRuntime(
           projectId,
-          files,
+          buildFiles,
           cachedBuild?.root
         );
     }
