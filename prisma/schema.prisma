@@ -62,6 +62,7 @@ model User {
   updatedAt   DateTime @updatedAt
 
   workspaces Workspace[]
+  evolutionApprovals EvolutionApprovalRecord[]
 
   @@index([createdAt])
 }
@@ -83,6 +84,7 @@ model Workspace {
   agentRuns     AgentRun[]
   analyses      ProjectAnalysis[]
   deployments   Deployment[]
+  evolutionModels EvolutionModelRecord[]
 
   @@index([createdAt])
   builderAiOperations BuilderAiOperation[]
@@ -299,4 +301,65 @@ model BuilderAiOperation {
   @@index([workspaceId])
   @@index([projectId, operationType])
   @@index([projectId, status])
+}
+
+model EvolutionModelRecord {
+  id          String   @id @default(cuid())
+  workspaceId String
+  provider    String
+  modelId     String
+  name        String
+  tier        String
+  capabilities String[]
+  status      String   @default("DISCOVERED")
+  discoveredAt DateTime @default(now())
+  evaluatedAt  DateTime?
+  approvedAt   DateTime?
+  activatedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  evaluations EvolutionEvaluationRecord[]
+  approvals EvolutionApprovalRecord[]
+
+  @@unique([workspaceId, provider, modelId])
+  @@index([workspaceId, status])
+}
+
+model EvolutionEvaluationRecord {
+  id                   String   @id @default(cuid())
+  modelRecordId        String
+  compatible           Boolean
+  capabilitiesVerified Boolean
+  estimatedCostUsd     Float?
+  latencyMs            Float?
+  qualityScore         Float?
+  notes                String[]
+  evaluatedAt          DateTime @default(now())
+  createdAt            DateTime @default(now())
+
+  model EvolutionModelRecord @relation(fields: [modelRecordId], references: [id], onDelete: Cascade)
+  approvals EvolutionApprovalRecord[]
+
+  @@unique([id, modelRecordId])
+  @@index([modelRecordId, evaluatedAt])
+}
+
+model EvolutionApprovalRecord {
+  id             String   @id @default(cuid())
+  modelRecordId  String
+  evaluationId   String
+  approved       Boolean
+  approvedById   String
+  reason         String
+  decidedAt      DateTime @default(now())
+
+  model      EvolutionModelRecord      @relation(fields: [modelRecordId], references: [id], onDelete: Restrict)
+  evaluation EvolutionEvaluationRecord @relation(fields: [evaluationId, modelRecordId], references: [id, modelRecordId], onDelete: Restrict)
+  approvedBy User                      @relation(fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([modelRecordId, decidedAt])
+  @@index([evaluationId])
+  @@index([approvedById])
 }
