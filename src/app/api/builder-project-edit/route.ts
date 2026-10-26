@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { validateBuilderProject } from "@/lib/ai/builder-validator";
+
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 import {
@@ -254,6 +256,67 @@ export async function PATCH(
         instruction,
         currentFiles
       );
+
+    const compatibilityCodes = new Set([
+      "UNSUPPORTED_NATIVE_DEPENDENCY",
+      "INCOMPATIBLE_NEXT_CONFIG",
+    ]);
+
+    const proposedFiles = new Map(
+      currentFiles.map((file) => [file.path, file])
+    );
+
+    for (const file of result.files) {
+      proposedFiles.set(file.path, file);
+    }
+
+    const before = validateBuilderProject(currentFiles);
+    const after = validateBuilderProject(
+      Array.from(proposedFiles.values())
+    );
+
+    const issueKey = (issue: {
+      code: string;
+      file?: string;
+      message: string;
+    }) => `${issue.code}|${issue.file ?? ""}|${issue.message}`;
+
+    const existingIssues = new Set(
+      before.issues
+        .filter((issue) =>
+          issue.severity === "error" &&
+          compatibilityCodes.has(issue.code)
+        )
+        .map(issueKey)
+    );
+
+    const newIssues = after.issues.filter(
+      (issue) =>
+        issue.severity === "error" &&
+        compatibilityCodes.has(issue.code) &&
+        !existingIssues.has(issueKey(issue))
+    );
+
+    if (newIssues.length > 0) {
+      await prisma.builderAiOperation.updateMany({
+        where: {
+          id: operation.id,
+          status: "RESERVED",
+        },
+        data: {
+          status: "FAILED",
+        },
+      });
+
+      return NextResponse.json(
+        {
+          error:
+            "Modification IA refusée : nouvelles incompatibilités détectées.",
+          issues: newIssues,
+        },
+        { status: 422 }
+      );
+    }
 
     const existingByPath =
       new Map(

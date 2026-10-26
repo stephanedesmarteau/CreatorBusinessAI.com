@@ -246,6 +246,50 @@ export function validateBuilderProject(
     }
   }
 
+  const packageFile = fileMap.get("package.json");
+
+  if (packageFile) {
+    try {
+      const pkg = JSON.parse(packageFile.content);
+      const dependencies = {
+        ...(pkg.dependencies ?? {}),
+        ...(pkg.devDependencies ?? {}),
+        ...(pkg.optionalDependencies ?? {}),
+      };
+
+      for (const name of ["better-sqlite3", "sqlite3"]) {
+        if (Object.prototype.hasOwnProperty.call(dependencies, name)) {
+          issues.push({
+            severity: "error",
+            code: "UNSUPPORTED_NATIVE_DEPENDENCY",
+            file: "package.json",
+            message: `La dépendance ${name} nécessite une prise en charge native incompatible avec l'installation sécurisée actuelle.`,
+          });
+        }
+      }
+
+      const nextVersion = String(dependencies.next ?? "");
+      const nextConfig = fileMap.get("next.config.mjs")
+        ?? fileMap.get("next.config.js")
+        ?? fileMap.get("next.config.ts");
+
+      if (
+        /^\^?~?14(?:\.|$)/.test(nextVersion) &&
+        nextConfig &&
+        /\bserverExternalPackages\s*:/.test(nextConfig.content)
+      ) {
+        issues.push({
+          severity: "error",
+          code: "INCOMPATIBLE_NEXT_CONFIG",
+          file: nextConfig.path,
+          message: "serverExternalPackages n'est pas compatible avec Next.js 14.",
+        });
+      }
+    } catch {
+      // INVALID_PACKAGE_JSON est deja signale plus haut.
+    }
+  }
+
   const hasAppRouter =
     normalizedFiles.some(
       (file) =>

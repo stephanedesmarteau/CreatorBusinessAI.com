@@ -126,6 +126,15 @@ Pour cette première version, privilégie :
 - responsive
 - composants réutilisables
 - aucune dépendance inutile
+- Utilise Next.js 14.2.15 pour les nouveaux projets.
+- N'utilise que des options next.config compatibles avec Next.js 14.2.15.
+- N'utilise pas serverExternalPackages dans Next.js 14.
+- Évite les dépendances natives nécessitant node-gyp, prebuild-install ou des scripts postinstall.
+- N'utilise pas better-sqlite3, sqlite3 ou d'autres modules natifs.
+- Les dépendances doivent fonctionner avec npm install --ignore-scripts.
+- Pour un MVP nécessitant une base de données, privilégie une architecture compatible avec une base de données externe et des variables d'environnement côté serveur, sans intégrer de secrets.
+- Ne simule jamais une persistance serveur réelle si elle n'est pas implémentée.
+
 
 Règles :
 - Génère uniquement les fichiers nécessaires.
@@ -232,6 +241,37 @@ Format obligatoire :
     throw new Error(
       "Le Builder n'a généré aucun fichier valide."
     );
+  }
+
+  const usesAtAlias = files.some(
+    (file: BuilderFile) =>
+      /from\s*["']@\//.test(file.content) ||
+      /import\s*\(\s*["']@\//.test(file.content)
+  );
+
+  if (usesAtAlias) {
+    const tsconfig = files.find(
+      (file: BuilderFile) => file.path === "tsconfig.json"
+    );
+
+    if (tsconfig) {
+      try {
+        const config = JSON.parse(tsconfig.content);
+        const options = config.compilerOptions ?? {};
+
+        options.baseUrl ??= ".";
+        options.paths ??= {};
+        options.paths["@/*"] ??= ["./src/*"];
+
+        config.compilerOptions = options;
+        tsconfig.content =
+          JSON.stringify(config, null, 2) + "\n";
+      } catch {
+        throw new Error(
+          "Le tsconfig.json généré est invalide."
+        );
+      }
+    }
   }
 
   return {

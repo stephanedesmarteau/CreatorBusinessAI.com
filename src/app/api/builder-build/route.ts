@@ -6,6 +6,7 @@ import {
   takeCachedBuilderBuild,
 } from "@/lib/ai/builder-build-runner";
 import { startRuntime } from "@/lib/ai/builder-runtime";
+import { validateBuilderProject } from "@/lib/ai/builder-validator";
 import { applyCreatorBusinessTestPreset } from "@/lib/ai/builder-presets/creatorbusinessai-test";
 
 export const maxDuration = 300;
@@ -142,6 +143,28 @@ export async function POST(
         projectId,
         files
       );
+
+    const validation = validateBuilderProject(buildFiles);
+
+    const compatibilityIssues = validation.issues.filter(
+      (issue) =>
+        issue.severity === "error" &&
+        [
+          "UNSUPPORTED_NATIVE_DEPENDENCY",
+          "INCOMPATIBLE_NEXT_CONFIG",
+        ].includes(issue.code)
+    );
+
+    if (compatibilityIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Compilation bloquée : dépendances ou configuration incompatibles.",
+          issues: compatibilityIssues,
+        },
+        { status: 422 }
+      );
+    }
 
     const result =
       await runBuilderBuild(

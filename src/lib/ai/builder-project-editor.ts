@@ -41,11 +41,34 @@ function extractJson(text: string) {
   );
 }
 
-function normalizePath(path: string) {
-  return path
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
-    .replace(/\.\.\//g, "");
+function normalizePath(input: string) {
+  const path = input.replace(/\\/g, "/").trim();
+
+  if (
+    !path ||
+    path.startsWith("/") ||
+    /^[a-zA-Z]:/.test(path)
+  ) {
+    return "";
+  }
+
+  const segments = path.split("/");
+
+  if (
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === "." ||
+        segment === ".." ||
+        segment === "node_modules" ||
+        segment === ".env" ||
+        segment.startsWith(".env.")
+    )
+  ) {
+    return "";
+  }
+
+  return path;
 }
 
 export async function editBuilderProject(

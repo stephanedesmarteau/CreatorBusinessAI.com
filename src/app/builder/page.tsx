@@ -399,9 +399,23 @@ export default function BuilderPage() {
         await response.json();
 
       if (!response.ok) {
+        const details = Array.isArray(data.issues)
+          ? data.issues
+              .map(
+                (issue: { code?: string; message?: string }) =>
+                  `${issue.code ?? "ERREUR"} : ${issue.message ?? "Erreur inconnue"}`
+              )
+              .join(" | ")
+          : "";
+
         throw new Error(
-          data.error ||
-            "Impossible de compiler réellement le projet."
+          [
+            data.error ||
+              "Impossible de compiler réellement le projet.",
+            details,
+          ]
+            .filter(Boolean)
+            .join(" — ")
         );
       }
 
