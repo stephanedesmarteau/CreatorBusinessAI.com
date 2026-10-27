@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db/prisma";
 import { authorizeModelApproval } from "./model-authorization";
+import { validateApprovalGate } from "./model-approval-gate";
 import { executeApprovalTransaction } from "./transactions/model-approval-transaction";
 
 export type PersistModelApprovalInput = {
@@ -28,15 +29,10 @@ export async function persistModelApproval(
     input.workspaceId
   );
 
-  if (!authorization.authorized || !authorization.userId) {
-    throw new Error("Autorisation du propriétaire requise.");
-  }
-
-  const approvedById = authorization.userId;
-
-  if (!approvedById) {
-    throw new Error("Autorisation du propriétaire requise.");
-  }
+  const approvedById = validateApprovalGate({
+    humanConfirmed: input.humanConfirmed,
+    authorization,
+  });
 
   // Blocage de securite maintenu avant toute transaction.
   throw new Error("SERVICE_NON_FINALISE");
