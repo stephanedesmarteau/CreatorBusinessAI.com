@@ -231,3 +231,37 @@ test("un lot vide exige une authentification", async () => {
 
   assert.equal(writes, 0);
 });
+
+test("un modèle externe null ne bloque pas le lot", async () => {
+  let writes = 0;
+  const dependencies: DiscoveryPersistenceDependencies = {
+    getUser: async () => ({ id: "owner-1" }),
+    isWorkspaceOwner: async () => true,
+    createIfAbsent: async () => {
+      writes++;
+      return { id: "saved", created: true };
+    },
+  };
+
+  const valid: DiscoveredModelCandidate = {
+    id: "model-valid",
+    provider: "provider-a",
+    name: "Valid Model",
+    tier: "fast",
+    capabilities: ["text"],
+    source: "test",
+  };
+
+  const result = await persistDiscoveredModelsBatch(
+    "workspace-1",
+    [null as unknown as DiscoveredModelCandidate, valid],
+    dependencies
+  );
+
+  assert.deepEqual(result, {
+    discovered: 1,
+    skipped: 0,
+    rejected: 1,
+  });
+  assert.equal(writes, 1);
+});
