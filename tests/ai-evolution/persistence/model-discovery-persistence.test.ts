@@ -55,3 +55,37 @@ test("un modèle sans capacités est refusé", () => {
     /Capacités du modèle requises/
   );
 });
+
+test("un identifiant externe mal formé est rejeté proprement", () => {
+  assert.throws(
+    () =>
+      prepareDiscoveryRecord({
+        workspaceId: "workspace-1",
+        candidate: {
+          ...candidate,
+          id: null,
+        } as unknown as typeof candidate,
+      }),
+    {
+      name: "InvalidDiscoveredModelError",
+      message: "Modèle découvert invalide.",
+    }
+  );
+});
+
+test("une capacité externe inconnue est refusée", () => {
+  assert.throws(
+    () =>
+      prepareDiscoveryRecord({
+        workspaceId: "workspace-1",
+        candidate: {
+          ...candidate,
+          capabilities: ["unknown-capability"],
+        } as unknown as typeof candidate,
+      }),
+    {
+      name: "InvalidDiscoveredModelError",
+      message: "Capacités du modèle invalides.",
+    }
+  );
+});
