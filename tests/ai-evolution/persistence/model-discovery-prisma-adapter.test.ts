@@ -77,3 +77,27 @@ test("une erreur Prisma inattendue est propagée", async () => {
 
   assert.equal(lookups, 0);
 });
+
+test("un conflit P2002 sans modèle retrouvé transmet l'erreur", async () => {
+  const conflict = { code: "P2002" };
+  let lookups = 0;
+
+  const db = {
+    evolutionModelRecord: {
+      create: async () => {
+        throw conflict;
+      },
+      findUnique: async () => {
+        lookups++;
+        return null;
+      },
+    },
+  } as DiscoveryPrismaClient;
+
+  await assert.rejects(
+    createDiscoveredModelIfAbsent(record, db),
+    (error: unknown) => error === conflict
+  );
+
+  assert.equal(lookups, 1);
+});
