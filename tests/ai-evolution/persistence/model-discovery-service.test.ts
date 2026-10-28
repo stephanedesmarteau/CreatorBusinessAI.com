@@ -69,3 +69,24 @@ test("un non-propriétaire ne peut pas enregistrer", async () => {
 
   assert.equal(writes, 0);
 });
+
+test("une erreur de persistance est transmise sans fausse réussite", async () => {
+  let writes = 0;
+
+  await assert.rejects(
+    persistDiscoveredModel("workspace-1", candidate, {
+      getUser: async () => ({ id: "user-1" }),
+      isWorkspaceOwner: async () => true,
+      createIfAbsent: async () => {
+        writes++;
+        throw new Error("PERSISTENCE_INDISPONIBLE");
+      },
+    }),
+    {
+      name: "Error",
+      message: "PERSISTENCE_INDISPONIBLE",
+    }
+  );
+
+  assert.equal(writes, 1);
+});
