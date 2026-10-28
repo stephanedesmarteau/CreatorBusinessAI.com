@@ -265,3 +265,30 @@ test("un modèle externe null ne bloque pas le lot", async () => {
   });
   assert.equal(writes, 1);
 });
+
+test("un lot null est refusé sans écriture", async () => {
+  let writes = 0;
+
+  const dependencies: DiscoveryPersistenceDependencies = {
+    getUser: async () => ({ id: "owner-1" }),
+    isWorkspaceOwner: async () => true,
+    createIfAbsent: async () => {
+      writes++;
+      return { id: "unexpected", created: true };
+    },
+  };
+
+  await assert.rejects(
+    persistDiscoveredModelsBatch(
+      "workspace-1",
+      null as unknown as DiscoveredModelCandidate[],
+      dependencies
+    ),
+    {
+      name: "Error",
+      message: "Lot de modèles invalide.",
+    }
+  );
+
+  assert.equal(writes, 0);
+});

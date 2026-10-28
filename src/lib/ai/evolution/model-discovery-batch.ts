@@ -28,6 +28,10 @@ export async function persistDiscoveredModelsBatch(
     throw new Error(authorization.reason);
   }
 
+  if (!Array.isArray(candidates)) {
+    throw new Error("Lot de modèles invalide.");
+  }
+
   const result: DiscoveryBatchResult = {
     discovered: 0,
     skipped: 0,
