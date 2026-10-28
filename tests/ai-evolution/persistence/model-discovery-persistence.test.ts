@@ -89,3 +89,17 @@ test("une capacité externe inconnue est refusée", () => {
     }
   );
 });
+
+test("un identifiant de workspace null est refusé proprement", () => {
+  assert.throws(
+    () =>
+      prepareDiscoveryRecord({
+        workspaceId: null as unknown as string,
+        candidate,
+      }),
+    {
+      name: "Error",
+      message: "Workspace requis.",
+    }
+  );
+});

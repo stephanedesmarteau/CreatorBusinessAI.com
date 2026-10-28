@@ -9,6 +9,14 @@ export type DiscoveryPersistenceInput = {
 export function prepareDiscoveryRecord(
   input: DiscoveryPersistenceInput
 ) {
+  if (typeof input.workspaceId !== "string") {
+    throw new Error("Workspace requis.");
+  }
+
+  if (typeof input.workspaceId !== "string") {
+    throw new Error("Workspace requis.");
+  }
+
   const workspaceId = input.workspaceId.trim();
   const candidate = input.candidate;
 
