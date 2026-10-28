@@ -1,3 +1,4 @@
+import { InvalidDiscoveredModelError } from "./model-discovery-validation-error";
 import type { DiscoveredModelCandidate } from "./model-discovery";
 
 export type DiscoveryPersistenceInput = {
@@ -21,14 +22,14 @@ export function prepareDiscoveryRecord(
   }
 
   if (!provider || !modelId || !name || !source) {
-    throw new Error("Modèle découvert invalide.");
+    throw new InvalidDiscoveredModelError("Modèle découvert invalide.");
   }
 
   if (
     !Array.isArray(candidate.capabilities) ||
     candidate.capabilities.length === 0
   ) {
-    throw new Error("Capacités du modèle requises.");
+    throw new InvalidDiscoveredModelError("Capacités du modèle requises.");
   }
 
   if (
@@ -36,7 +37,7 @@ export function prepareDiscoveryRecord(
       candidate.tier
     )
   ) {
-    throw new Error("Catégorie de modèle invalide.");
+    throw new InvalidDiscoveredModelError("Catégorie de modèle invalide.");
   }
 
   return {

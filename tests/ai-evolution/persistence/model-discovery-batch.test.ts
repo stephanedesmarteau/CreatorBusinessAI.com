@@ -166,3 +166,68 @@ test("une erreur de persistance interrompt le lot", async () => {
 
   assert.equal(writes, 1);
 });
+
+test("un modèle invalide est rejeté sans bloquer le lot", async () => {
+  let writes = 0;
+
+  const dependencies: DiscoveryPersistenceDependencies = {
+    getUser: async () => ({ id: "owner-1" }),
+    isWorkspaceOwner: async () => true,
+    createIfAbsent: async () => {
+      writes++;
+      return { id: "saved-model", created: true };
+    },
+  };
+
+  const valid: DiscoveredModelCandidate = {
+    id: "model-valid",
+    provider: "provider-a",
+    name: "Valid Model",
+    tier: "fast",
+    capabilities: ["text"],
+    source: "test",
+  };
+
+  const invalid: DiscoveredModelCandidate = {
+    ...valid,
+    id: "",
+  };
+
+  const result = await persistDiscoveredModelsBatch(
+    "workspace-1",
+    [invalid, valid],
+    dependencies
+  );
+
+  assert.deepEqual(result, {
+    discovered: 1,
+    skipped: 0,
+    rejected: 1,
+  });
+
+  assert.equal(writes, 1);
+});
+
+test("un lot vide exige une authentification", async () => {
+  let writes = 0;
+
+  const dependencies: DiscoveryPersistenceDependencies = {
+    getUser: async () => null,
+    isWorkspaceOwner: async () => true,
+    createIfAbsent: async () => {
+      writes++;
+      return { id: "unexpected", created: true };
+    },
+  };
+
+  await assert.rejects(
+    persistDiscoveredModelsBatch(
+      "workspace-1",
+      [],
+      dependencies
+    ),
+    /Authentification requise/
+  );
+
+  assert.equal(writes, 0);
+});

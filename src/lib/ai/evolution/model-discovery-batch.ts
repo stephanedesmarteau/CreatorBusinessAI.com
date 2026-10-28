@@ -4,6 +4,10 @@ import {
   type DiscoveryPersistenceDependencies,
 } from "./model-discovery-persistence-service";
 
+import { authorizeModelApprovalCore } from "./model-authorization-core";
+
+import { InvalidDiscoveredModelError } from "./model-discovery-validation-error";
+
 export type DiscoveryBatchResult = {
   discovered: number;
   skipped: number;
@@ -15,6 +19,15 @@ export async function persistDiscoveredModelsBatch(
   candidates: DiscoveredModelCandidate[],
   dependencies: DiscoveryPersistenceDependencies
 ): Promise<DiscoveryBatchResult> {
+  const authorization = await authorizeModelApprovalCore(
+    workspaceId,
+    dependencies
+  );
+
+  if (!authorization.authorized) {
+    throw new Error(authorization.reason);
+  }
+
   const result: DiscoveryBatchResult = {
     discovered: 0,
     skipped: 0,
@@ -22,16 +35,25 @@ export async function persistDiscoveredModelsBatch(
   };
 
   for (const candidate of candidates) {
-    const saved = await persistDiscoveredModel(
-      workspaceId,
-      candidate,
-      dependencies
-    );
+    try {
+      const saved = await persistDiscoveredModel(
+        workspaceId,
+        candidate,
+        dependencies
+      );
 
-    if (saved.created) {
-      result.discovered++;
-    } else {
-      result.skipped++;
+      if (saved.created) {
+        result.discovered++;
+      } else {
+        result.skipped++;
+      }
+    } catch (error) {
+      if (error instanceof InvalidDiscoveredModelError) {
+        result.rejected++;
+        continue;
+      }
+
+      throw error;
     }
   }
 
