@@ -21,6 +21,22 @@ export type DiscoveryResult = {
   rejected: number;
 };
 
+const ALLOWED_CAPABILITIES = new Set<string>([
+  "text",
+  "reasoning",
+  "planning",
+  "coding",
+  "business",
+  "research",
+  "marketing",
+  "memory",
+  "image-generation",
+  "image-edit",
+  "video-generation",
+  "speech-generation",
+  "transcription",
+]);
+
 export function discoverModels(
   catalog: EvolutionModelCatalog,
   candidates: DiscoveredModelCandidate[]
@@ -55,6 +71,11 @@ export function discoverModels(
       !source ||
       !Array.isArray(candidate.capabilities) ||
       candidate.capabilities.length === 0 ||
+      !candidate.capabilities.every(
+        (capability) =>
+          typeof capability === "string" &&
+          ALLOWED_CAPABILITIES.has(capability)
+      ) ||
       !["fast", "balanced", "powerful", "specialized"]
         .includes(candidate.tier)
     ) {
