@@ -49,3 +49,38 @@ test("un modèle ACTIVE ne peut pas être enregistré directement", () => {
   assert.equal(catalog.list().length, 0);
   assert.equal(catalog.listByStatus("ACTIVE").length, 0);
 });
+
+test("les capacités enregistrées sont protégées contre les modifications externes", () => {
+  const catalog = new EvolutionModelCatalog();
+
+  const model = {
+    id: "modele-protege",
+    provider: "provider-test",
+    name: "Modèle protégé",
+    tier: "balanced" as const,
+    capabilities: ["text" as "text" | "coding"],
+    status: "DISCOVERED" as const,
+    discoveredAt: "2026-10-29T00:00:00.000Z",
+  };
+
+  assert.equal(catalog.register(model), true);
+
+  model.capabilities.push("coding");
+
+  const retrieved = catalog.get("provider-test", "modele-protege");
+
+  assert.ok(retrieved);
+  assert.deepEqual(retrieved.capabilities, ["text"]);
+
+  retrieved.capabilities.push("coding");
+
+  const listed = catalog.list();
+  listed[0].capabilities.push("coding");
+
+  assert.deepEqual(
+    catalog.get("provider-test", "modele-protege")?.capabilities,
+    ["text"]
+  );
+
+  assert.equal(catalog.listByStatus("ACTIVE").length, 0);
+});
