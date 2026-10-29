@@ -84,3 +84,33 @@ test("les capacités enregistrées sont protégées contre les modifications ext
 
   assert.equal(catalog.listByStatus("ACTIVE").length, 0);
 });
+
+test("deux fournisseurs peuvent utiliser le même identifiant de modèle", () => {
+  const catalog = new EvolutionModelCatalog();
+
+  const modelA = {
+    id: "modele-partage",
+    provider: "provider-a",
+    name: "Modèle fournisseur A",
+    tier: "balanced" as const,
+    capabilities: ["text" as const],
+    status: "DISCOVERED" as const,
+    discoveredAt: "2026-10-29T00:00:00.000Z",
+  };
+
+  const modelB = {
+    ...modelA,
+    provider: "provider-b",
+    name: "Modèle fournisseur B",
+    capabilities: ["coding" as const],
+  };
+
+  assert.equal(catalog.register(modelA), true);
+  assert.equal(catalog.register(modelB), true);
+
+  assert.deepEqual(catalog.get("provider-a", "modele-partage"), modelA);
+  assert.deepEqual(catalog.get("provider-b", "modele-partage"), modelB);
+
+  assert.equal(catalog.list().length, 2);
+  assert.equal(catalog.listByStatus("ACTIVE").length, 0);
+});
