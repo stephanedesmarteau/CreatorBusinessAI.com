@@ -32,6 +32,17 @@ export function discoverModels(
   };
 
   for (const candidate of candidates) {
+    if (
+      !candidate ||
+      typeof candidate.id !== "string" ||
+      typeof candidate.provider !== "string" ||
+      typeof candidate.name !== "string" ||
+      typeof candidate.source !== "string"
+    ) {
+      result.rejected++;
+      continue;
+    }
+
     const id = candidate.id.trim();
     const provider = candidate.provider.trim();
     const name = candidate.name.trim();
