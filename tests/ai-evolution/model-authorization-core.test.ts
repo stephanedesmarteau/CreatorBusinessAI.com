@@ -54,3 +54,20 @@ test("Proprietaire authentifie : autorisation accordee", async () => {
   assert.equal(result.authorized, true);
   assert.equal(result.userId, "owner-1");
 });
+
+test("Identifiant utilisateur vide : acces refuse sans verification du proprietaire", async () => {
+  let ownershipChecked = false;
+
+  const result = await authorizeModelApprovalCore("workspace-1", {
+    getUser: async () => ({ id: "   " }),
+    isWorkspaceOwner: async () => {
+      ownershipChecked = true;
+      return true;
+    },
+  });
+
+  assert.equal(result.authorized, false);
+  assert.equal(result.userId, null);
+  assert.equal(ownershipChecked, false);
+  assert.equal(result.reason, "Authentification requise.");
+});
