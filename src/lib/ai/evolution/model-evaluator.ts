@@ -9,8 +9,11 @@ export function evaluateModel(
   const notes: string[] = [];
 
   const hasIdentity =
+    typeof model.id === "string" &&
     Boolean(model.id.trim()) &&
+    typeof model.provider === "string" &&
     Boolean(model.provider.trim()) &&
+    typeof model.name === "string" &&
     Boolean(model.name.trim());
 
   const hasCapabilities =
