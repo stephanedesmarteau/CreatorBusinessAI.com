@@ -3,6 +3,7 @@ import type {
   AIModelTier,
 } from "../providers/provider-registry";
 
+import { hasValidModelCapabilities } from "./model-capabilities";
 import { EvolutionModelCatalog } from "./model-catalog";
 import type { EvolutionModel } from "./types";
 
@@ -20,22 +21,6 @@ export type DiscoveryResult = {
   skipped: number;
   rejected: number;
 };
-
-const ALLOWED_CAPABILITIES = new Set<string>([
-  "text",
-  "reasoning",
-  "planning",
-  "coding",
-  "business",
-  "research",
-  "marketing",
-  "memory",
-  "image-generation",
-  "image-edit",
-  "video-generation",
-  "speech-generation",
-  "transcription",
-]);
 
 export function discoverModels(
   catalog: EvolutionModelCatalog,
@@ -69,13 +54,7 @@ export function discoverModels(
       !provider ||
       !name ||
       !source ||
-      !Array.isArray(candidate.capabilities) ||
-      candidate.capabilities.length === 0 ||
-      !candidate.capabilities.every(
-        (capability) =>
-          typeof capability === "string" &&
-          ALLOWED_CAPABILITIES.has(capability)
-      ) ||
+      !hasValidModelCapabilities(candidate.capabilities) ||
       !["fast", "balanced", "powerful", "specialized"]
         .includes(candidate.tier)
     ) {

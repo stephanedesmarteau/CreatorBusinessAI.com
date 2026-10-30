@@ -1,3 +1,5 @@
+import { hasValidModelCapabilities } from "./model-capabilities";
+
 import type {
   EvolutionModel,
   EvolutionEvaluation,
@@ -17,8 +19,7 @@ export function evaluateModel(
     Boolean(model.name.trim());
 
   const hasCapabilities =
-    Array.isArray(model.capabilities) &&
-    model.capabilities.length > 0;
+    hasValidModelCapabilities(model.capabilities);
 
   const compatible =
     hasIdentity &&

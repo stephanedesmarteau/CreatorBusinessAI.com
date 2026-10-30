@@ -89,3 +89,23 @@ test("des capacités null sont refusées sans exception", () => {
   );
   assert.equal(model.status, "DISCOVERED");
 });
+
+test("une capacité inconnue rend le modèle incompatible", () => {
+  const model = {
+    id: "modele-capacite-inconnue",
+    provider: "provider-test",
+    name: "Modèle avec capacité inconnue",
+    tier: "balanced" as const,
+    capabilities: ["text", "capacite-inconnue"],
+    status: "DISCOVERED" as const,
+    discoveredAt: "2026-10-29T00:00:00.000Z",
+  };
+
+  const result = evaluateModel(
+    model as unknown as Parameters<typeof evaluateModel>[0]
+  );
+
+  assert.equal(result.compatible, false);
+  assert.equal(result.capabilitiesVerified, false);
+  assert.equal(model.status, "DISCOVERED");
+});
