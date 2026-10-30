@@ -66,3 +66,26 @@ test("un identifiant null est refusé sans provoquer d'exception", () => {
     result.notes.includes("Identité du modèle incomplète.")
   );
 });
+
+test("des capacités null sont refusées sans exception", () => {
+  const model = {
+    id: "modele-capacites-invalides",
+    provider: "provider-test",
+    name: "Modèle sans capacités valides",
+    tier: "balanced" as const,
+    capabilities: null,
+    status: "DISCOVERED" as const,
+    discoveredAt: "2026-10-29T00:00:00.000Z",
+  };
+
+  const result = evaluateModel(
+    model as unknown as Parameters<typeof evaluateModel>[0]
+  );
+
+  assert.equal(result.compatible, false);
+  assert.equal(result.capabilitiesVerified, false);
+  assert.ok(
+    result.notes.includes("Aucune capacité déclarée.")
+  );
+  assert.equal(model.status, "DISCOVERED");
+});

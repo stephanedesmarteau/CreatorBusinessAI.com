@@ -17,6 +17,7 @@ export function evaluateModel(
     Boolean(model.name.trim());
 
   const hasCapabilities =
+    Array.isArray(model.capabilities) &&
     model.capabilities.length > 0;
 
   const compatible =
