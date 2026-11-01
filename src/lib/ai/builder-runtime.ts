@@ -13,6 +13,7 @@ import {
 import net from "net";
 import os from "os";
 import path from "path";
+import { resolveBuilderSafePath } from "./builder-safe-path";
 
 export type RuntimeFile = {
   path: string;
@@ -57,26 +58,7 @@ function safePath(
   root: string,
   relative: string
 ) {
-  const clean = relative
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
-    .replace(/\.\.\//g, "");
-
-  const resolved =
-    path.resolve(root, clean);
-
-  if (
-    resolved !== root &&
-    !resolved.startsWith(
-      root + path.sep
-    )
-  ) {
-    throw new Error(
-      `Chemin interdit : ${relative}`
-    );
-  }
-
-  return resolved;
+  return resolveBuilderSafePath(root, relative);
 }
 
 async function getFreePort() {

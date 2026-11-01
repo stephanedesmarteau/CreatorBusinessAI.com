@@ -7,6 +7,7 @@ import {
 import { execFile } from "child_process";
 import os from "os";
 import path from "path";
+import { resolveBuilderSafePath } from "./builder-safe-path";
 
 export type BuildRunnerFile = {
   path: string;
@@ -46,26 +47,7 @@ function safePath(
   root: string,
   relative: string
 ) {
-  const clean = relative
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
-    .replace(/\.\.\//g, "");
-
-  const resolved =
-    path.resolve(root, clean);
-
-  if (
-    resolved !== root &&
-    !resolved.startsWith(
-      root + path.sep
-    )
-  ) {
-    throw new Error(
-      `Chemin de fichier interdit : ${relative}`
-    );
-  }
-
-  return resolved;
+  return resolveBuilderSafePath(root, relative);
 }
 
 async function runCommand(
