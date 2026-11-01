@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { prisma } from "@/lib/db/prisma";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 
 export async function GET(request: Request) {
   try {
@@ -14,8 +15,20 @@ export async function GET(request: Request) {
       );
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        workspaceId: workspace.id,
+      },
       include: {
         files: {
           where: { status: "READY" },

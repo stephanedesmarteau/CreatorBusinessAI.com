@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 import {
   getRuntimeStatus,
   startRuntime,
@@ -42,6 +43,30 @@ export async function GET(
     );
   }
 
+  const workspace = await getOrCreateUserWorkspace();
+
+  if (!workspace) {
+    return NextResponse.json(
+      { error: "Non autorisé." },
+      { status: 401 }
+    );
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      workspaceId: workspace.id,
+    },
+    select: { id: true },
+  });
+
+  if (!project) {
+    return NextResponse.json(
+      { error: "Projet introuvable." },
+      { status: 404 }
+    );
+  }
+
   return NextResponse.json({
     success: true,
     runtime:
@@ -74,10 +99,17 @@ export async function POST(
       );
     }
 
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+    }
+
     const project =
-      await prisma.project.findUnique({
+      await prisma.project.findFirst({
         where: {
           id: projectId,
+          workspaceId: workspace.id,
         },
         include: {
           files: {
@@ -184,6 +216,21 @@ export async function DELETE(
         },
         { status: 400 }
       );
+    }
+
+    const workspace = await getOrCreateUserWorkspace();
+
+    if (!workspace) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, workspaceId: workspace.id },
+      select: { id: true },
+    });
+
+    if (!project) {
+      return NextResponse.json({ error: "Projet introuvable." }, { status: 404 });
     }
 
     const runtime =
