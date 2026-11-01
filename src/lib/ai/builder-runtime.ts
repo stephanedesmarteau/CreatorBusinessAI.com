@@ -437,7 +437,6 @@ export async function startRuntime(
         TMPDIR: process.env.TMPDIR || "/tmp",
         NODE_ENV: "production",
         NEXT_TELEMETRY_DISABLED: "1",
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
         NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN: process.env.NEXT_PUBLIC_CREATORBUSINESSAI_ORIGIN || "",
         OPENAI_MODEL:
           process.env.OPENAI_MODEL ||
