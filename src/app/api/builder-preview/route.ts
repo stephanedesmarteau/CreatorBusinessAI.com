@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
 import { getAIModel } from "@/lib/ai/providers";
 
 const client = new OpenAI({
@@ -243,10 +244,14 @@ export async function POST(
       );
     }
 
+    const workspace = await getOrCreateUserWorkspace();
+    if (!workspace) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+
     const project =
-      await prisma.project.findUnique({
+      await prisma.project.findFirst({
         where: {
           id: projectId,
+          workspaceId: workspace.id,
         },
         include: {
           files: {
