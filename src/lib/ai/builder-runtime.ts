@@ -14,6 +14,7 @@ import net from "net";
 import os from "os";
 import path from "path";
 import { resolveBuilderSafePath } from "./builder-safe-path";
+import { assertBuilderExecutionAllowed } from "./builder-execution-policy";
 
 export type RuntimeFile = {
   path: string;
@@ -322,6 +323,7 @@ export async function startRuntime(
   files: RuntimeFile[],
   preparedRoot?: string
 ) {
+  assertBuilderExecutionAllowed();
   await stopRuntime(
     projectId
   );

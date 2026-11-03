@@ -1,3 +1,4 @@
+import { isBuilderExecutionAllowed } from "@/lib/ai/builder-execution-policy";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserWorkspace } from "@/lib/db/user-workspace";
@@ -14,6 +15,16 @@ export const maxDuration = 300;
 export async function POST(
   request: Request
 ) {
+  if (!isBuilderExecutionAllowed()) {
+    return NextResponse.json(
+      {
+        error: "BUILDER_EXECUTION_DISABLED",
+        message: "Execution des projets desactivee en production.",
+      },
+      { status: 503 }
+    );
+  }
+
   try {
     const body =
       await request.json();

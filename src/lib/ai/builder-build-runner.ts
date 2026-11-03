@@ -6,6 +6,7 @@ import { execFile } from "child_process";
 import os from "os";
 import path from "path";
 import { writeBuilderSafeFile } from "./builder-safe-write";
+import { assertBuilderExecutionAllowed } from "./builder-execution-policy";
 
 export type BuildRunnerFile = {
   path: string;
@@ -117,6 +118,7 @@ export async function runBuilderBuild(
   projectId: string,
   files: BuildRunnerFile[]
 ): Promise<BuildRunnerResult> {
+  assertBuilderExecutionAllowed();
   const started =
     Date.now();
 
