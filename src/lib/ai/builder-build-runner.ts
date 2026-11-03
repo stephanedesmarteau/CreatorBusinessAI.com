@@ -1,13 +1,11 @@
 import {
-  mkdir,
   mkdtemp,
   rm,
-  writeFile,
 } from "fs/promises";
 import { execFile } from "child_process";
 import os from "os";
 import path from "path";
-import { resolveBuilderSafePath } from "./builder-safe-path";
+import { writeBuilderSafeFile } from "./builder-safe-write";
 
 export type BuildRunnerFile = {
   path: string;
@@ -42,13 +40,6 @@ const buildCache =
 
 globalBuildCache.creatorBusinessAIBuildCache =
   buildCache;
-
-function safePath(
-  root: string,
-  relative: string
-) {
-  return resolveBuilderSafePath(root, relative);
-}
 
 async function runCommand(
   command: string,
@@ -146,23 +137,10 @@ export async function runBuilderBuild(
         continue;
       }
 
-      const target =
-        safePath(
-          tempRoot,
-          file.path
-        );
-
-      await mkdir(
-        path.dirname(target),
-        {
-          recursive: true,
-        }
-      );
-
-      await writeFile(
-        target,
-        file.content,
-        "utf8"
+      await writeBuilderSafeFile(
+        tempRoot,
+        file.path,
+        file.content
       );
     }
 
