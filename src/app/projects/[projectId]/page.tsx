@@ -69,6 +69,13 @@ export default async function ProjectPage({
             </Link>
 
             <Link
+              href={`/business-builder?projectId=${encodeURIComponent(project.id)}`}
+              className="inline-flex rounded-xl border border-blue-400/30 bg-blue-500/10 px-5 py-3 font-semibold text-blue-300 hover:bg-blue-500/20"
+            >
+              Ouvrir AI Business Builder →
+            </Link>
+
+            <Link
               href={`/builder?projectId=${encodeURIComponent(project.id)}`}
               className="inline-flex rounded-xl border border-white/15 bg-white/10 px-5 py-3 font-semibold text-white hover:bg-white/15"
             >

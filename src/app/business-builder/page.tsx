@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type FactoryExecutionResult = {
   type: string;
@@ -106,6 +106,17 @@ function FormattedContent({
   );
 }
 
+function getBusinessBuilderDraftKey(): string {
+  const projectId =
+    new URLSearchParams(window.location.search)
+      .get("projectId")
+      ?.trim();
+
+  return projectId
+    ? `creatorbusinessai:business-builder-draft:${projectId}`
+    : "creatorbusinessai:business-builder-draft";
+}
+
 export default function BusinessBuilderPage() {
   const [idea, setIdea] = useState("");
   const [industry, setIndustry] = useState("");
@@ -124,6 +135,179 @@ export default function BusinessBuilderPage() {
   const [factoryExecutionError, setFactoryExecutionError] =
     useState("");
   const factoryExecutionLockRef = useRef(false);
+  const planGenerationStartedRef = useRef(false);
+  const formEditedDuringRestoreRef = useRef(false);
+
+  const [draftReady, setDraftReady] = useState(false);
+
+  function markFormEdited() {
+    formEditedDuringRestoreRef.current = true;
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(
+        getBusinessBuilderDraftKey()
+      );
+
+      if (!raw) return;
+
+      const saved = JSON.parse(raw);
+
+      if (!saved || typeof saved !== "object") return;
+
+      setIdea(String(saved.idea ?? ""));
+      setIndustry(String(saved.industry ?? ""));
+      setMarket(String(saved.market ?? ""));
+      setBudget(String(saved.budget ?? ""));
+      setGoal(String(saved.goal ?? ""));
+    } catch {
+      console.warn("Brouillon Business Builder non restauré.");
+    } finally {
+      setDraftReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    try {
+      localStorage.setItem(
+      getBusinessBuilderDraftKey(),
+      JSON.stringify({ idea, industry, market, budget, goal })
+      );
+    } catch {
+      console.warn("Impossible de sauvegarder le brouillon.");
+    }
+  }, [draftReady, idea, industry, market, budget, goal]);
+
+
+  async function saveBusinessFactoryAnalysis(
+    generatedFactory: Record<string, unknown>,
+    generatedPlan: string
+  ) {
+    const projectId =
+      new URLSearchParams(window.location.search)
+        .get("projectId")
+        ?.trim() || null;
+
+    const localId = `business-factory-${crypto.randomUUID()}`;
+
+    const response = await fetch("/api/project-analyses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        localId,
+        projectId,
+        projectName: idea.trim().slice(0, 120) || "Projet Business Factory",
+        description: idea,
+        sector: industry,
+        targetMarket: market,
+        mainGoal: goal,
+        result: {
+          source: "business-factory",
+          idea,
+          industry,
+          market,
+          budget,
+          goal,
+          plan: generatedPlan,
+          factory: generatedFactory,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        data.error || "Sauvegarde PostgreSQL impossible."
+      );
+    }
+
+    return response.json();
+  }
+
+  useEffect(() => {
+    const projectId =
+      new URLSearchParams(window.location.search)
+        .get("projectId")
+        ?.trim();
+
+    if (!projectId) return;
+
+    let cancelled = false;
+
+    async function restoreBusinessFactoryAnalysis() {
+      try {
+        const response = await fetch(
+          `/api/project-analyses?projectId=${encodeURIComponent(projectId!)}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          throw new Error("Impossible de récupérer les analyses.");
+        }
+
+        const data = await response.json();
+
+        if (
+          cancelled ||
+          planGenerationStartedRef.current ||
+          formEditedDuringRestoreRef.current ||
+          !Array.isArray(data.analyses)
+        ) return;
+
+        const analysis = data.analyses.find(
+          (item: { result?: { source?: string; plan?: string; factory?: unknown } }) =>
+            item.result?.source === "business-factory" &&
+            typeof item.result.plan === "string" &&
+            item.result.factory
+        );
+
+        if (!analysis) return;
+
+        const savedResult = analysis.result as {
+          plan: string;
+          factory: unknown;
+          idea?: string;
+          industry?: string;
+          market?: string;
+          budget?: string;
+          goal?: string;
+        };
+
+        setPlan(savedResult.plan);
+        setFactory(savedResult.factory);
+
+        if (
+          typeof savedResult.idea === "string" &&
+          typeof savedResult.industry === "string" &&
+          typeof savedResult.market === "string" &&
+          typeof savedResult.budget === "string" &&
+          typeof savedResult.goal === "string"
+        ) {
+          setIdea(savedResult.idea);
+          setIndustry(savedResult.industry);
+          setMarket(savedResult.market);
+          setBudget(savedResult.budget);
+          setGoal(savedResult.goal);
+        }
+      } catch (restoreError) {
+        console.error(
+          "[CreatorBusinessAI] Restauration du plan impossible.",
+          restoreError
+        );
+      }
+    }
+
+    void restoreBusinessFactoryAnalysis();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const scoreMatch = plan.match(/(\d{1,3})\/100/);
   const score = scoreMatch ? Number(scoreMatch[1]) : null;
@@ -357,6 +541,7 @@ export default function BusinessBuilderPage() {
   }
 
   async function generatePlan() {
+    planGenerationStartedRef.current = true;
     setLoading(true);
     setError("");
     setPlan("");
@@ -521,6 +706,25 @@ export default function BusinessBuilderPage() {
         .join("\n");
 
       setPlan(factoryPlan);
+
+      try {
+        await saveBusinessFactoryAnalysis(
+          factory as Record<string, unknown>,
+          factoryPlan
+        );
+        console.info(
+          "[CreatorBusinessAI] Plan Business Factory sauvegardé."
+        );
+      } catch (saveError) {
+        console.error(
+          "[CreatorBusinessAI] Sauvegarde du plan échouée.",
+          saveError
+        );
+        setError(
+          "Le plan a été généré, mais sa sauvegarde permanente a échoué. " +
+          "Téléchargez le plan avant de quitter cette page."
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -587,7 +791,7 @@ export default function BusinessBuilderPage() {
                 </label>
                 <textarea
                   value={idea}
-                  onChange={(e) => setIdea(e.target.value)}
+                  onChange={(e) => { markFormEdited(); setIdea(e.target.value); }}
                   className="min-h-36 w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-white outline-none transition focus:border-blue-400/60"
                   placeholder="Exemple : Je veux lancer une plateforme de services pour les petites entreprises..."
                 />
@@ -600,7 +804,7 @@ export default function BusinessBuilderPage() {
                   </label>
                   <input
                     value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
+                    onChange={(e) => { markFormEdited(); setIndustry(e.target.value); }}
                     className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 outline-none transition focus:border-blue-400/60"
                     placeholder="Ex. Technologie, transport..."
                   />
@@ -612,7 +816,7 @@ export default function BusinessBuilderPage() {
                   </label>
                   <input
                     value={market}
-                    onChange={(e) => setMarket(e.target.value)}
+                    onChange={(e) => { markFormEdited(); setMarket(e.target.value); }}
                     className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 outline-none transition focus:border-blue-400/60"
                     placeholder="Ex. Québec, Canada..."
                   />
@@ -626,7 +830,7 @@ export default function BusinessBuilderPage() {
                   </label>
                   <input
                     value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
+                    onChange={(e) => { markFormEdited(); setBudget(e.target.value); }}
                     className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 outline-none transition focus:border-blue-400/60"
                     placeholder="Ex. 10 000 $"
                   />
@@ -638,7 +842,7 @@ export default function BusinessBuilderPage() {
                   </label>
                   <input
                     value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
+                    onChange={(e) => { markFormEdited(); setGoal(e.target.value); }}
                     className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 outline-none transition focus:border-blue-400/60"
                     placeholder="Ex. Atteindre 100 clients"
                   />
