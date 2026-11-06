@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { canonicalizeBusinessFactory } from "@/lib/business-factory-canonical";
 
 type FactoryExecutionResult = {
   type: string;
@@ -106,6 +107,38 @@ function FormattedContent({
   );
 }
 
+async function getBusinessFactoryIdempotencyKey(
+  factory: unknown
+): Promise<string> {
+  const serialized = canonicalizeBusinessFactory(factory);
+
+  if (!serialized) {
+    throw new Error("Plan Business Factory invalide.");
+  }
+
+  const bytes = new TextEncoder().encode(serialized);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+  const fingerprint = Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+  const storageKey =
+    "creatorbusinessai:business-factory-build:" + fingerprint;
+
+  const existing = localStorage.getItem(storageKey);
+
+  if (existing && /^[a-zA-Z0-9_-]{16,128}$/.test(existing)) {
+    return existing;
+  }
+
+  const idempotencyKey = crypto.randomUUID();
+
+  localStorage.setItem(storageKey, idempotencyKey);
+
+  return idempotencyKey;
+}
+
 function getBusinessBuilderDraftKey(): string {
   const projectId =
     new URLSearchParams(window.location.search)
@@ -135,6 +168,7 @@ export default function BusinessBuilderPage() {
   const [factoryExecutionError, setFactoryExecutionError] =
     useState("");
   const factoryExecutionLockRef = useRef(false);
+  const buildLockRef = useRef(false);
   const planGenerationStartedRef = useRef(false);
   const formEditedDuringRestoreRef = useRef(false);
 
@@ -486,14 +520,18 @@ export default function BusinessBuilderPage() {
   }
 
   async function buildFromFactory() {
-    if (!factory || building) {
+    if (!factory || building || buildLockRef.current) {
       return;
     }
 
+    buildLockRef.current = true;
     setBuilding(true);
     setBuildError("");
 
     try {
+      const idempotencyKey =
+        await getBusinessFactoryIdempotencyKey(factory);
+
       const response = await fetch(
         "/api/business-factory/build",
         {
@@ -503,6 +541,7 @@ export default function BusinessBuilderPage() {
           },
           body: JSON.stringify({
             factory,
+            idempotencyKey,
           }),
         }
       );
@@ -536,6 +575,7 @@ export default function BusinessBuilderPage() {
           : "Impossible de construire le projet."
       );
     } finally {
+      buildLockRef.current = false;
       setBuilding(false);
     }
   }
