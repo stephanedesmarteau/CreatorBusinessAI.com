@@ -1,13 +1,19 @@
 import OpenAI, { toFile } from "openai";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getAIModel } from "@/lib/ai/providers";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "La clé API OpenAI est manquante." },
@@ -15,7 +21,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const formData = await request.formData();
+    const maxImageBytes = 10 * 1024 * 1024;
+    if (Number(request.headers.get("content-length")) > 2 * maxImageBytes + 65536) {
+      return NextResponse.json({ error: "Images trop volumineuses." }, { status: 413 });
+    }
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "Formulaire image invalide." }, { status: 400 });
+    }
 
     const image = formData.get("image");
     const mask = formData.get("mask");
@@ -36,6 +51,27 @@ export async function POST(request: Request) {
         { error: "Veuillez indiquer la modification souhaitée." },
         { status: 400 }
       );
+    }
+
+    if (prompt.length > 12000) {
+      return NextResponse.json({ error: "Instruction trop longue." }, { status: 413 });
+    }
+    if (
+      !["full", "mask"].includes(editMode) ||
+      !["1024x1024", "1536x1024", "1024x1536"].includes(size) ||
+      !["low", "medium", "high"].includes(quality) ||
+      (editMode === "mask" && !(mask instanceof File))
+    ) {
+      return NextResponse.json({ error: "Paramètres image invalides." }, { status: 400 });
+    }
+    const images = editMode === "mask" && mask instanceof File ? [image, mask] : [image];
+    for (const file of images) {
+      if (file.size > maxImageBytes) {
+        return NextResponse.json({ error: "Image trop volumineuse (10 Mo maximum)." }, { status: 413 });
+      }
+      if (!file.size || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        return NextResponse.json({ error: "Format image invalide (PNG, JPEG ou WebP requis)." }, { status: 400 });
+      }
     }
 
     const bytes = Buffer.from(await image.arrayBuffer());
@@ -61,6 +97,10 @@ export async function POST(request: Request) {
         }
       );
     }
+
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const response = await client.images.edit({
       model: getAIModel("image").id,

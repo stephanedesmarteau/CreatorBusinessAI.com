@@ -1,13 +1,14 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { aiText, InvalidAIRequest, readAIJson } from "@/lib/ai/request-validation";
 import { getAIModel } from "@/lib/ai/providers";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "La clé API OpenAI est manquante." },
@@ -15,13 +16,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await readAIJson(request);
 
-    const idea = String(body.idea ?? "").trim();
-    const industry = String(body.industry ?? "").trim();
-    const market = String(body.market ?? "").trim();
-    const budget = String(body.budget ?? "").trim();
-    const goal = String(body.goal ?? "").trim();
+    const idea = aiText(body.idea);
+    const industry = aiText(body.industry);
+    const market = aiText(body.market);
+    const budget = aiText(body.budget);
+    const goal = aiText(body.goal);
 
     if (!idea) {
       return NextResponse.json(
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.responses.create({
+      max_output_tokens: 6000,
       model: getAIModel("businessDefault").id,
       reasoning: {
         effort: "low",
@@ -136,6 +139,9 @@ Prépare le plan d'affaires demandé.
       plan: response.output_text,
     });
   } catch (error) {
+    if (error instanceof InvalidAIRequest) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Erreur Business Builder:", error);
 
     return NextResponse.json(

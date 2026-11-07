@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { aiText, InvalidAIRequest, readAIJson } from "@/lib/ai/request-validation";
 import { getAIModel } from "@/lib/ai/providers";
 import {
   agentInstructions,
@@ -34,6 +36,11 @@ const allowedRoutes: AIRoute[] = [
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "La clé API OpenAI est manquante." },
@@ -41,8 +48,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
-    const message = String(body.message ?? "").trim();
+    const body = await readAIJson(request);
+    const message = aiText(body.message);
     const imageSize = String(body.imageSize ?? "1024x1024");
     const imageQuality = String(body.imageQuality ?? "medium");
     const videoSize = String(body.videoSize ?? "1280x720") as VideoSize;
@@ -63,6 +70,7 @@ export async function POST(request: Request) {
     }
 
     const response = await client.responses.create({
+      max_output_tokens: 512,
       model: getAIModel("fast").id,
       reasoning: {
         effort: "low",
@@ -185,6 +193,7 @@ Réponds uniquement avec le nom exact de la catégorie.
     const reasoningEffort = useSol ? "medium" : "low";
 
     const agentResponse = await client.responses.create({
+      max_output_tokens: 6000,
       model: agentModel,
       reasoning: {
         effort: reasoningEffort,
@@ -212,6 +221,9 @@ Réponds uniquement avec le nom exact de la catégorie.
       result: agentResponse.output_text,
     });
   } catch (error) {
+    if (error instanceof InvalidAIRequest) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Erreur AI Router:", error);
 
     return NextResponse.json(

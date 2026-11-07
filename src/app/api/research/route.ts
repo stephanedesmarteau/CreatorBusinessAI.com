@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { aiText, InvalidAIRequest, readAIJson } from "@/lib/ai/request-validation";
 import { researchWeb } from "@/lib/ai/research-engine";
 
 export const maxDuration = 180;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
 
-    const query = String(
+    const body = await readAIJson(request);
+
+    const query = aiText(
       body.query ?? body.message ?? ""
-    ).trim();
+    );
 
     if (!query) {
       return NextResponse.json(
@@ -30,6 +35,9 @@ export async function POST(request: Request) {
       sources: research.sources,
     });
   } catch (error) {
+    if (error instanceof InvalidAIRequest) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error(
       "Erreur Research Web:",
       error

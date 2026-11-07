@@ -1,4 +1,14 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CreatorBusinessAI
+
+Plateforme Next.js de gestion de projets et de création assistée par IA.
+
+Consulter [la validation de la bêta](docs/beta-validation.md) pour les commandes
+de test, les protections présentes et les limites à vérifier avant publication.
+
+La connexion utilise Clerk et les données PostgreSQL via Prisma. Configurer
+`DATABASE_URL`, les clés Clerk et `OPENAI_API_KEY` dans l'environnement local ;
+ne jamais les committer. Les scripts de développement ci-dessous utilisent
+les dépendances définies dans `package.json`.
 
 ## Getting Started
 

@@ -54,3 +54,14 @@ next-env.d.ts
 /.windsurf/
 /skills-lock.json
 src/app/api/projects/route.ts.backup
+
+# Preserve local backups without including them in commits.
+/.local-backups/
+/sauvegardes/
+/0
+**/*.backup*
+**/*.bak
+**/*.c183-*
+**/*.c184-*
+**/*-avant-*
+**/*.work.txt

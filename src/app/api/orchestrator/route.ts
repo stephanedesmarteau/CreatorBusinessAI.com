@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { aiText, InvalidAIRequest, readAIJson } from "@/lib/ai/request-validation";
 import { orchestrate } from "@/lib/ai/orchestrator";
 
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         {
@@ -15,11 +20,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await readAIJson(request);
 
-    const message = String(
+    const message = aiText(
       body.message ?? ""
-    ).trim();
+    );
 
     if (!message) {
       return NextResponse.json(
@@ -49,6 +54,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof InvalidAIRequest) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error(
       "Erreur Super Orchestrator:",
       error

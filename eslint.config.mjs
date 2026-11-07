@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "src/generated/**",
+    "**/*.backup*",
+    "**/*.bak",
+    "**/studio-page-avant-*.tsx",
   ]),
 ]);
 

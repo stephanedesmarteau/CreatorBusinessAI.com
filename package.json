@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint src tests scripts",
+    "test": "node scripts/test.mjs",
+    "typecheck": "tsc --noEmit --incremental false",
+    "check:artifacts": "node scripts/check-build-traces.mjs",
     "vercel-build": "next build"
   },
   "dependencies": {

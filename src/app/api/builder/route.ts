@@ -53,6 +53,9 @@ export async function POST(
   request: Request
 ) {
   try {
+    const workspace = await getOrCreateUserWorkspace();
+    if (!workspace) return jsonWithCors(request, { error: "Non autorisé." }, { status: 401 });
+
     const body =
       await request.json();
 
@@ -73,22 +76,23 @@ export async function POST(
       );
     }
 
-    const workspace =
-      await getOrCreateUserWorkspace();
-    if (!workspace) return jsonWithCors(request, { error: "Non autorisé." }, { status: 401 });
     const requestedProjectId = String(body.projectId ?? "").trim();
 
-    const built =
-      await buildProject(prompt);
-
-    const project = requestedProjectId
+    const existingProject = requestedProjectId
       ? await prisma.project.findFirst({
           where: {
             id: requestedProjectId,
             workspaceId: workspace.id,
           },
         })
-      : await prisma.project.create({
+      : null;
+
+    if (requestedProjectId && !existingProject) {
+      return jsonWithCors(request, { error: "Projet introuvable ou accès interdit." }, { status: 403 });
+    }
+
+    const built = await buildProject(prompt);
+    const project = existingProject ?? await prisma.project.create({
           data: {
             workspaceId: workspace.id,
             name: built.name,

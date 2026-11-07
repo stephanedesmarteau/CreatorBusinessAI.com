@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       !factory ||
       !factory.project ||
       !factory.project.name ||
-      !Array.isArray(factory.deliverables)
+      !Array.isArray(factory.deliverables) ||
+      factory.deliverables.length > 12
     ) {
       return NextResponse.json(
         {

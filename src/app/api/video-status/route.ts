@@ -1,12 +1,19 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { auth } from "@clerk/nextjs/server";
+import { ownsVideo } from "@/lib/ai/video-ownership";
 
 export async function GET(request: Request) {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Non autorisé." },
+        { status: 401 }
+      );
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "La clé API OpenAI est manquante." },
@@ -24,6 +31,17 @@ export async function GET(request: Request) {
       );
     }
 
+    if (!(await ownsVideo(videoId, userId))) {
+      return NextResponse.json(
+        { error: "Vidéo introuvable." },
+        { status: 404 }
+      );
+    }
+
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
     const video = await client.videos.retrieve(videoId);
 
     return NextResponse.json({
@@ -37,7 +55,7 @@ export async function GET(request: Request) {
         seconds: video.seconds,
         error: video.error ?? null,
       },
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Erreur Video Status:", error);
 

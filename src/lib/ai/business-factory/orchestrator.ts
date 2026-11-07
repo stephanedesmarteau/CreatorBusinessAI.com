@@ -230,6 +230,9 @@ RÈGLES
 export async function executeBusinessFactory(
   factory: BusinessFactorySpec
 ): Promise<BusinessFactoryExecution> {
+  if (!Array.isArray(factory.deliverables) || factory.deliverables.length > 12) {
+    throw new Error("Une exécution accepte au maximum 12 livrables.");
+  }
   const startedAt = new Date().toISOString();
 
   const deliverables = factory.deliverables.filter(
