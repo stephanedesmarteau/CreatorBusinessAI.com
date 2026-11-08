@@ -1,0 +1,55 @@
+name: Beta AI agent simulation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_run:
+    workflows:
+      - Beta tests
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beta-ai-agent-simulation
+  cancel-in-progress: false
+
+jobs:
+  simulation:
+    # Aucun secret ni environnement privilégié, même après workflow_run.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+      BETA_AGENT_ENABLED: 'false'
+      AGENT_MODE: simulate
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate Prisma Client without a database connection
+        run: npx --no-install prisma generate
+      - name: Generate Next.js types without a production build
+        run: npx --no-install next typegen
+      - name: Run mandatory unit tests
+        run: npm test
+      - name: Check TypeScript
+        run: npm run typecheck
+      - name: Simulate controller after successful tests
+        run: node scripts/github-agent/run.mjs
