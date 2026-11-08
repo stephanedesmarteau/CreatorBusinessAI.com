@@ -6,7 +6,6 @@ on:
       - beta/stabilisation-securite
   pull_request:
     branches:
-      - main
       - beta/stabilisation-securite
 
 permissions:
@@ -23,16 +22,13 @@ defaults:
 jobs:
   tests:
     name: Unit tests and TypeScript
-    # Les PR vers main ne concernent ce workflow que si elles viennent de la bêta.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.head_ref == 'beta/stabilisation-securite' ||
-      github.base_ref == 'beta/stabilisation-securite'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CI: 'true'
       NEXT_TELEMETRY_DISABLED: '1'
+      BETA_AGENT_ENABLED: 'false'
+      AGENT_MODE: simulate
 
     steps:
       - name: Checkout
@@ -61,3 +57,6 @@ jobs:
 
       - name: Check TypeScript
         run: npm run typecheck
+
+      - name: Run simulation only after successful tests and TypeScript
+        run: node scripts/github-agent/simulate.mjs
