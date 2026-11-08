@@ -1,6 +1,12 @@
 name: Beta AI agent simulation
 
 on:
+  pull_request:
+    branches:
+      - beta/stabilisation-securite
+  push:
+    branches:
+      - beta/stabilisation-securite
   workflow_dispatch:
   schedule:
     - cron: '23 */6 * * *'
@@ -19,10 +25,12 @@ concurrency:
 
 jobs:
   simulation:
+    name: Simulation tests and controller
     # Aucun secret ni environnement privilégié, même après workflow_run.
     if: >-
-      github.ref == 'refs/heads/main' &&
-      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'beta/stabilisation-securite')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -31,10 +39,10 @@ jobs:
       BETA_AGENT_ENABLED: 'false'
       AGENT_MODE: simulate
     steps:
-      - name: Checkout trusted controller
+      - name: Checkout simulation revision without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'push' && github.sha || 'beta/stabilisation-securite' }}
           persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -52,4 +60,4 @@ jobs:
       - name: Check TypeScript
         run: npm run typecheck
       - name: Simulate controller after successful tests
-        run: node scripts/github-agent/run.mjs
+        run: node scripts/github-agent/simulate.mjs
